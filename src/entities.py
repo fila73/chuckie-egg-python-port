@@ -330,8 +330,8 @@ class Player(Entity):
             surface_y = row * 8 * SCALE
             
             # Check left and right corners
-            col_l = (self.rect.left + 1*SCALE) // (8 * SCALE)
-            col_r = (self.rect.right - 1*SCALE) // (8 * SCALE)
+            col_l = (self.rect.left + 4*SCALE) // (8 * SCALE)
+            col_r = (self.rect.right - 4*SCALE) // (8 * SCALE)
             
             tile_l = level.get_tile(col_l, row)
             tile_r = level.get_tile(col_r, row)
@@ -406,8 +406,8 @@ class Player(Entity):
         if bottom_y % (8 * SCALE) != 0: return False
         
         row = bottom_y // (8 * SCALE)
-        col_l = (self.rect.left + 1*SCALE) // (8 * SCALE)
-        col_r = (self.rect.right - 1*SCALE) // (8 * SCALE)
+        col_l = (self.rect.left + 4*SCALE) // (8 * SCALE)
+        col_r = (self.rect.right - 4*SCALE) // (8 * SCALE)
         
         # Check all columns we span
         for c in range(col_l, col_r + 1):
