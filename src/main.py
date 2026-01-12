@@ -21,7 +21,7 @@ def main():
     level.set_level('level_1') # Start with Level 1
     
     from .entities import Player
-    player = Player(100, 100, res_manager) # Spawn at 100,100 for test
+    player = Player(96, 96, res_manager) # Spawn at 96,96 (Aligned to 24px grid)
     
     running = True
     while running:

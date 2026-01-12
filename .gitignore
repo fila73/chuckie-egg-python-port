@@ -151,3 +151,9 @@ cython_debug/
 
 # VS Code
 .vscode/
+chuckie-egg.skool
+loading-screen.skool
+
+!*.skool
+chuckie-egg.skool
+loading-screen.skool
