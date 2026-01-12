@@ -115,7 +115,7 @@ class Player(Entity):
                   # Logic: if rect.x is not start_x + move_x?
                   # check_collision_x undoes the move => rect.x == start_x
                   if self.rect.x == start_x:
-                       self.jump_vx = 0
+                       self.jump_vx = -self.jump_vx
 
         # 3. JUMP START
         # Can only jump if on ground
