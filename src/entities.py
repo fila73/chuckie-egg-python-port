@@ -90,8 +90,11 @@ class Player(Entity):
         if is_airborne:
              # In Air: Ignore inputs, use committed velocity
              move_x = self.jump_vx
+        elif self.state == self.STATE_CLIMB:
+             # In Climb: No horizontal movement allowed (Step 2)
+             move_x = 0
         else:
-             # On Ground: Use Inputs
+             # On Ground (Walk/Stand): Use Inputs
              if keys[pygame.K_LEFT]:
                   move_x = -SPEED
                   self.facing = 'left'
@@ -117,9 +120,31 @@ class Player(Entity):
                   if self.rect.x == start_x:
                        self.jump_vx = -self.jump_vx
 
-        # 3. JUMP START
-        # Can only jump if on ground
-        if not is_airborne and keys[pygame.K_SPACE]:
+        # 3. LADDER ENTRY (Step 1)
+        if not is_airborne and self.state != self.STATE_CLIMB:
+             if keys[pygame.K_UP] or keys[pygame.K_DOWN]:
+                  # Check center column
+                  c = self.rect.centerx // (8 * SCALE)
+                  # Check roughly middle of body for ladder
+                  r = (self.rect.top + self.rect.bottom) // 2 // (8 * SCALE)
+                  t = level.get_tile(c, r)
+                  
+                  if t in [TILE_LADDER_L, TILE_LADDER_R]:
+                       # Alignment: Must be at the junction of L and R part ($8px from left edge of L, or 0px from left of R)
+                       if t == TILE_LADDER_L:
+                            target_center_x = (c + 1) * 8 * SCALE
+                       else: # TILE_LADDER_R
+                            target_center_x = c * 8 * SCALE
+                            
+                       # 0px tolerance from the split line (Authentic: junction)
+                       if self.rect.centerx == target_center_x:
+                            self.state = self.STATE_CLIMB
+                            # When starting to climb, we stop horizontal movement
+                            move_x = 0
+
+        # 4. JUMP START
+        # Can only jump if on ground (not climbing, not air)
+        if self.state in [self.STATE_STAND, self.STATE_WALK_LEFT, self.STATE_WALK_RIGHT] and keys[pygame.K_SPACE]:
              self.state = self.STATE_AIR_UP
              self.jump_timer = 0
              # COMMIT DIRECTION based on PRESSED KEYS
@@ -128,9 +153,9 @@ class Player(Entity):
              if keys[pygame.K_RIGHT]: self.jump_vx = SPEED
              # If no direction key, straight up.
              
-        # 4. VERTICAL MOVEMENT (State Machine)
+        # 5. VERTICAL MOVEMENT (State Machine)
         if self.state == self.STATE_AIR_UP:
-             # Moving Up
+             # Moving Up (Jump)
              self.rect.y -= SPEED
              self.jump_timer += 1
              
@@ -147,8 +172,30 @@ class Player(Entity):
              self.rect.y += SPEED
              self.check_collision_y(level, SPEED)
              
+        elif self.state == self.STATE_CLIMB:
+             # CLIMBING (Step 2 & 3)
+             if keys[pygame.K_UP]:
+                  self.rect.y -= SPEED
+                  self.update_animation() # Update climb frames
+             elif keys[pygame.K_DOWN]:
+                  self.rect.y += SPEED
+                  self.update_animation() # Update climb frames
+
+             c = self.rect.centerx // (8 * SCALE)
+             r_bottom = (self.rect.bottom) // (8 * SCALE)
+
+             # Sideways Exit (Step 3)
+             # Must be aligned vertically with a "floor row"
+             if self.rect.bottom % (8 * SCALE) == 0:
+                  if keys[pygame.K_LEFT] and level.get_tile(c - 2, r_bottom) == TILE_FLOOR:
+                       self.state = self.STATE_WALK_LEFT
+                       self.facing = 'left'
+                  elif keys[pygame.K_RIGHT] and level.get_tile(c + 1, r_bottom) == TILE_FLOOR:
+                       self.state = self.STATE_WALK_RIGHT
+                       self.facing = 'right'
+             
         else:
-             # GRAVITY / SUPPORT Check (when not Jumping Up)
+             # GRAVITY / SUPPORT Check (when not Jumping Up or Climbing)
              if not self.check_support(level):
                   self.state = self.STATE_AIR_DOWN
                   self.rect.y += SPEED
