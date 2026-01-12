@@ -1,4 +1,3 @@
-
 import pygame
 from .constants import *
 
@@ -226,13 +225,29 @@ class Player(Entity):
              t = level.get_tile(c, r_bottom)
              
              if dy > 0: # Falling
-                  # Ladders count as Empty Space for falling (unless grabbed, which is not impl yet)
-                  # Only land on actual Floor
+                  # Always land on Floor
                   if t == TILE_FLOOR:
-                       # Snap to top of this tile
                        self.rect.bottom = r_bottom * 8 * SCALE
                        self.state = self.STATE_STAND
                        return
+                  
+                  # Conditional Ladder Landing:
+                  # Land ONLY if platforms on BOTH sides.
+                  if t in [TILE_LADDER_L, TILE_LADDER_R]:
+                       land_on_ladder = False
+                       if t == TILE_LADDER_L:
+                            left_ok = level.get_tile(c - 1, r_bottom) == TILE_FLOOR
+                            right_ok = level.get_tile(c + 2, r_bottom) == TILE_FLOOR
+                       elif t == TILE_LADDER_R:
+                            left_ok = level.get_tile(c - 2, r_bottom) == TILE_FLOOR
+                            right_ok = level.get_tile(c + 1, r_bottom) == TILE_FLOOR
+                       if left_ok and right_ok:
+                            land_on_ladder = True
+                       
+                       if land_on_ladder:
+                            self.rect.bottom = r_bottom * 8 * SCALE
+                            self.state = self.STATE_STAND
+                            return
 
     def check_support(self, level):
         # Authentic 8-bit Support Check (Stricter):
