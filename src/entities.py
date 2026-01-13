@@ -223,10 +223,10 @@ class Player(Entity):
              # Sideways Exit (Step 3)
              # Must be aligned vertically with a "floor row"
              if self.rect.bottom % (8 * SCALE) == 0:
-                  if keys[pygame.K_LEFT] and level.get_tile(c - 2, r_bottom) == TILE_FLOOR:
+                  if keys[pygame.K_LEFT] and level.get_tile(c - 2, r_bottom) in (TILE_FLOOR, TILE_EGG, TILE_CORN):
                        self.state = self.STATE_WALK_LEFT
                        self.facing = 'left'
-                  elif keys[pygame.K_RIGHT] and level.get_tile(c + 1, r_bottom) == TILE_FLOOR:
+                  elif keys[pygame.K_RIGHT] and level.get_tile(c + 1, r_bottom) in (TILE_FLOOR, TILE_EGG, TILE_CORN):
                        self.state = self.STATE_WALK_RIGHT
                        self.facing = 'right'
              
@@ -251,47 +251,30 @@ class Player(Entity):
 
     def check_collision_x(self, level, dx):
         # Screen bounds
-        if self.rect.left < 0: self.rect.left = 0
-        if self.rect.right > WINDOW_WIDTH: self.rect.right = WINDOW_WIDTH
+        if self.rect.left - SCALE < 0: self.rect.left = 0 + SCALE
+        if self.rect.right + (SCALE * 2) > WINDOW_WIDTH: self.rect.right = WINDOW_WIDTH - (SCALE * 2)
         
-        # Wall Collision
-        # Use simple Rect check against wall/floor tiles
-        
-        # Add a small vertical tolerance (toes) to avoid hitting the floor 
-        # we are walking on/falling into slightly.
-        v_offset = 2 * SCALE
-        # Add horizontal tolerance to allow getting closer to walls (1px authentic)
-        h_offset = 1 * SCALE
-        
-        c_left = (self.rect.left + h_offset) // (8 * SCALE)
-        c_right = (self.rect.right - 1 - h_offset) // (8 * SCALE)
+        # In Chuckie Egg, floors act as walls when walking, 
+        # but are passed through when jumping/falling vertically.
+        if self.state in [self.STATE_AIR_UP, self.STATE_AIR_DOWN]:
+             return
+
+        # Check only the leading edge in the direction of movement
+        if dx > 0:
+             c = (self.rect.right - 4) // (8 * SCALE)
+        else:
+             c = (self.rect.left + 4) // (8 * SCALE)
+             
         r_top = self.rect.top // (8 * SCALE)
-        
         # "Toes" tolerance: Don't check the very bottom pixels against walls
+        # to avoid colliding with the floor Harry is standing on.
+        v_offset = 2 * SCALE
         r_bottom = (self.rect.bottom - 1 - v_offset) // (8 * SCALE)
         
         for r in range(r_top, r_bottom + 1):
-             for c in range(c_left, c_right + 1):
-                  t = level.get_tile(c, r)
-                  
-                  # Floor Collision Logic
-                  if t == TILE_FLOOR:
-                       # If Airborne (Jump/Fall), we ignore floors (pass-through)
-                       if self.state in [self.STATE_AIR_UP, self.STATE_AIR_DOWN]:
-                            continue
-                       
-                       # If Walking/Standing, Floor is a WALL (cannot walk through check_collision_x)
-                       # Note: Toes tolerance prevents colliding with the floor we stand on.
-                       self.rect.x -= dx
-                       return
-                  
-                  # Check other solid tiles (e.g. Cage parts?)
-                  # Ignored tiles: Empty, Ladders, Collectibles, Floor (handled above)
-                  if t != TILE_EMPTY and t not in [TILE_LADDER_L, TILE_LADDER_R, TILE_EGG, TILE_CORN]:
-                       # Collision detected with a solid object (e.g. Cage)
-                       # Undo move
-                       self.rect.x -= dx
-                       return
+             if level.get_tile(c, r) == TILE_FLOOR:
+                  self.rect.x -= dx
+                  return
 
     def check_collision_y(self, level, dy):
         # Floor Collision (Landing)
