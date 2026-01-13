@@ -122,7 +122,7 @@ class Player(Entity):
                        self.jump_vx = -self.jump_vx
 
         # 3. LADDER ENTRY (Step 1)
-        if not is_airborne and self.state != self.STATE_CLIMB:
+        if self.state != self.STATE_CLIMB:
             # Only trigger if UP or DOWN is pressed
             if keys[pygame.K_UP] or keys[pygame.K_DOWN]:
                 
@@ -158,11 +158,21 @@ class Player(Entity):
                     # Authentic strict junction alignment
                     if self.rect.centerx == target_center_x:
                         self.state = self.STATE_CLIMB
+                        
+                        # Snap vertically to tile grid when catching airborne
+                        # to ensure exit logic (y % 24 == 0) works correctly.
+                        if keys[pygame.K_UP]:
+                             # Snap top to the bottom of the tile we are entering
+                             self.rect.top = (r_up + 1) * 8 * SCALE
+                        elif keys[pygame.K_DOWN]:
+                             # Snap bottom to the top of the tile we are entering
+                             self.rect.bottom = r_down * 8 * SCALE
+                             
                         move_x = 0
 
         # 4. JUMP START
-        # Can only jump if on ground (not climbing, not air)
-        if self.state in [self.STATE_STAND, self.STATE_WALK_LEFT, self.STATE_WALK_RIGHT] and keys[pygame.K_SPACE]:
+        # Can only jump if on ground or climbing
+        if self.state in [self.STATE_STAND, self.STATE_WALK_LEFT, self.STATE_WALK_RIGHT, self.STATE_CLIMB] and keys[pygame.K_SPACE]:
              self.state = self.STATE_AIR_UP
              self.jump_timer = 0
              # COMMIT DIRECTION based on PRESSED KEYS
