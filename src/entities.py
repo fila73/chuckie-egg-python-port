@@ -286,7 +286,7 @@ class Player(Entity):
         # Fall if the "heel" (trailing edge based on movement) is over air.
         if self.facing == 'right':
             # Moving right: check the left edge (heel)
-            check_x = self.rect.centerx - SCALE
+            check_x = self.rect.centerx
         else:
             # Moving left: check the right edge (heel)
             check_x = self.rect.centerx
