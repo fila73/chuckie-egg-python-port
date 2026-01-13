@@ -1,3 +1,4 @@
+from src.constants import SCALE
 import pygame
 from .constants import *
 
@@ -296,60 +297,60 @@ class Player(Entity):
         # Floor Collision (Landing)
         # MUST MATCH Support Logic for consistency.
         
-        offset = 2 * SCALE
-        check_points = [self.rect.centerx - offset, self.rect.centerx + offset]
-        
-        # We only check bottom edge for landing collision
-        r_bottom = (self.rect.bottom - 1) // (8 * SCALE)
-        
-        for check_x in check_points:
-             c = check_x // (8 * SCALE)
-             t = level.get_tile(c, r_bottom)
-             
-             if dy > 0: # Falling
-                  # Always land on Floor
-                  if t == TILE_FLOOR:
-                       self.rect.bottom = r_bottom * 8 * SCALE
-                       self.state = self.STATE_STAND
-                       return
-                  
-                  # Conditional Ladder Landing:
-                  # Land ONLY if platforms on BOTH sides.
-                  if t in [TILE_LADDER_L, TILE_LADDER_R]:
-                       land_on_ladder = False
-                       if t == TILE_LADDER_L:
-                            left_ok = level.get_tile(c - 1, r_bottom) == TILE_FLOOR
-                            right_ok = level.get_tile(c + 2, r_bottom) == TILE_FLOOR
-                       elif t == TILE_LADDER_R:
-                            left_ok = level.get_tile(c - 2, r_bottom) == TILE_FLOOR
-                            right_ok = level.get_tile(c + 1, r_bottom) == TILE_FLOOR
-                       if left_ok and right_ok:
-                            land_on_ladder = True
-                       
-                       if land_on_ladder:
-                            self.rect.bottom = r_bottom * 8 * SCALE
-                            self.state = self.STATE_STAND
-                            return
+        # Fall if the "heel" (trailing edge based on movement) is over air.
+        if self.facing == 'right':
+            # Moving right: check the left edge (heel)
+            check_x = self.rect.centerx - SCALE
+        else:
+            # Moving left: check the right edge (heel)
+            check_x = self.rect.centerx
+            
+        c = check_x // (8 * SCALE)
+        r = self.rect.bottom // (8 * SCALE)
+        t = level.get_tile(c, r)
+       
+        if dy > 0: # Falling
+            # Always land on Floor
+            if t == TILE_FLOOR:
+                self.rect.bottom = r * 8 * SCALE
+                self.state = self.STATE_STAND
+                return
+               
+            # Conditional Ladder Landing:
+            # Land ONLY if platforms on BOTH sides.
+            if t in [TILE_LADDER_L, TILE_LADDER_R]:
+                land_on_ladder = False
+                if t == TILE_LADDER_L:
+                    left_ok = level.get_tile(c - 1, r) == TILE_FLOOR
+                    right_ok = level.get_tile(c + 2, r) == TILE_FLOOR
+                elif t == TILE_LADDER_R:
+                    left_ok = level.get_tile(c - 2, r) == TILE_FLOOR
+                    right_ok = level.get_tile(c + 1, r) == TILE_FLOOR
+                if left_ok and right_ok:
+                    land_on_ladder = True
+                    
+                if land_on_ladder:
+                    self.rect.bottom = r * 8 * SCALE
+                    self.state = self.STATE_STAND
+                    return
 
     def check_support(self, level):
-        # Authentic 8-bit Support Check (Stricter):
-        # We check a "Foot Width" around the center.
-        # If either side of the "feet" is over air, we fall.
-        # This reduces the overhang allowance.
+        # Fall if the "heel" (trailing edge based on movement) is over air.
+        if self.facing == 'right':
+            # Moving right: check the left edge (heel)
+            check_x = self.rect.centerx - SCALE
+        else:
+            # Moving left: check the right edge (heel)
+            check_x = self.rect.centerx
+            
+        c = check_x // (8 * SCALE)
+        r = self.rect.bottom // (8 * SCALE)
+        t = level.get_tile(c, r)
         
-        offset = 2 * SCALE # Small width (approx 6px total width)
-        
-        check_points = [self.rect.centerx - offset, self.rect.centerx + offset]
-        check_y = self.rect.bottom
-        
-        for check_x in check_points:
-             c = check_x // (8 * SCALE)
-             r = check_y // (8 * SCALE)
-             t = level.get_tile(c, r)
-             
-             # Ladders count as solid ground to walk on (Support)
-             if t not in [TILE_FLOOR, TILE_LADDER_L, TILE_LADDER_R]:
-                  return False # Any part of feet in air = Fall
+        # Solid check
+        if t not in [TILE_FLOOR, TILE_LADDER_L, TILE_LADDER_R]:
+             self.rect.x += (SCALE * 4 if self.facing == 'right' else -SCALE * 4)
+             return False
                   
         return True
 
