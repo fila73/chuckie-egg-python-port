@@ -172,23 +172,26 @@ class Player(Entity):
              # If no direction key, straight up.
              
         # 5. VERTICAL MOVEMENT (State Machine)
+        # Snížená vertikální rychlost pro delší skok (2 pixely při SCALE 3)
+        V_SPEED = 2 * (SCALE // 3) if SCALE >= 3 else 1
+        
         if self.state == self.STATE_AIR_UP:
              # Moving Up (Jump)
-             self.rect.y -= SPEED
+             self.rect.y -= V_SPEED
              self.jump_timer += 1
              
              # NO CEILING CHECK
              if self.rect.top < 0: self.rect.top = 0
              
-             # Timer Length (User Requested 11)
-             if self.jump_timer > 11:
+             # Zvýšená doba letu (17 snímků) pro dosah cca 5 dlaždic
+             if self.jump_timer > 17:
                   self.state = self.STATE_AIR_DOWN
                   self.jump_timer = 0
                   
         elif self.state == self.STATE_AIR_DOWN:
              # Falling
-             self.rect.y += SPEED
-             self.check_collision_y(level, SPEED)
+             self.rect.y += V_SPEED
+             self.check_collision_y(level, V_SPEED)
              
         elif self.state == self.STATE_CLIMB:
              # CLIMBING (Step 2 & 3)
