@@ -122,25 +122,42 @@ class Player(Entity):
 
         # 3. LADDER ENTRY (Step 1)
         if not is_airborne and self.state != self.STATE_CLIMB:
-             if keys[pygame.K_UP] or keys[pygame.K_DOWN]:
-                  # Check center column
-                  c = self.rect.centerx // (8 * SCALE)
-                  # Check roughly middle of body for ladder
-                  r = (self.rect.top + self.rect.bottom) // 2 // (8 * SCALE)
-                  t = level.get_tile(c, r)
-                  
-                  if t in [TILE_LADDER_L, TILE_LADDER_R]:
-                       # Alignment: Must be at the junction of L and R part ($8px from left edge of L, or 0px from left of R)
-                       if t == TILE_LADDER_L:
-                            target_center_x = (c + 1) * 8 * SCALE
-                       else: # TILE_LADDER_R
-                            target_center_x = c * 8 * SCALE
-                            
-                       # 0px tolerance from the split line (Authentic: junction)
-                       if self.rect.centerx == target_center_x:
-                            self.state = self.STATE_CLIMB
-                            # When starting to climb, we stop horizontal movement
-                            move_x = 0
+            # Only trigger if UP or DOWN is pressed
+            if keys[pygame.K_UP] or keys[pygame.K_DOWN]:
+                
+                # 1. Determine the Column (c) based on center x
+                #    (We use center because we enforce alignment later)
+                c = self.rect.centerx // (8 * SCALE)
+                
+                # 2. Determine the Row (r) based on direction
+                target_tile = None
+                
+                if keys[pygame.K_UP]:
+                    # For UP: Check the tile just ABOVE top of the body.
+                    # This ensures we are physically "under" the ladder we want to climb.
+                    r_up = (self.rect.top - 1) // (8 * SCALE)
+                    target_tile = level.get_tile(c, r_up)
+                    
+                elif keys[pygame.K_DOWN]:
+                    # For DOWN: Check the tile just BELOW the feet.
+                    # We add +1 pixel to rect.bottom to check the tile *under* the player.
+                    # This allows climbing down when standing ON TOP of a ladder.
+                    r_down = (self.rect.bottom + 1) // (8 * SCALE)
+                    target_tile = level.get_tile(c, r_down)
+
+                # 3. Check if the identified tile is actually a ladder
+                if target_tile in [TILE_LADDER_L, TILE_LADDER_R]:
+                    
+                    # 4. Alignment Check (Your existing logic)
+                    if target_tile == TILE_LADDER_L:
+                        target_center_x = (c + 1) * 8 * SCALE
+                    else: # TILE_LADDER_R
+                        target_center_x = c * 8 * SCALE
+                        
+                    # Authentic strict junction alignment
+                    if self.rect.centerx == target_center_x:
+                        self.state = self.STATE_CLIMB
+                        move_x = 0
 
         # 4. JUMP START
         # Can only jump if on ground (not climbing, not air)
@@ -183,6 +200,24 @@ class Player(Entity):
 
              c = self.rect.centerx // (8 * SCALE)
              r_bottom = (self.rect.bottom) // (8 * SCALE)
+
+             # Vertical Exit (Step 4)
+             # Check if we should exit vertically (only at tile boundaries)
+             if self.rect.bottom % (8 * SCALE) == 0:
+                  if keys[pygame.K_UP]:
+                       # Topping out: check if there's no more ladder above us
+                       # Harry is 16px high (2 tiles). Check the tile at his head level.
+                       r_head = (self.rect.top - 1) // (8 * SCALE)
+                       if level.get_tile(c, r_head) not in [TILE_LADDER_L, TILE_LADDER_R]:
+                            self.state = self.STATE_STAND
+                            
+                  elif keys[pygame.K_DOWN]:
+                       # Stepping off bottom onto floor or falling
+                       if level.get_tile(c, r_bottom) == TILE_FLOOR:
+                            self.state = self.STATE_STAND
+                       elif level.get_tile(c, r_bottom) == TILE_EMPTY:
+                            # If no more ladder and no floor, fall
+                            self.state = self.STATE_AIR_DOWN
 
              # Sideways Exit (Step 3)
              # Must be aligned vertically with a "floor row"
