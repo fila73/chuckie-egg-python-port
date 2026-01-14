@@ -40,6 +40,30 @@ class Level:
                 (9 * 8 * SCALE, 0 * 8 * SCALE, 21 * 8 * SCALE, 1, -1, 0.0),   # A: starts at bottom
                 (9 * 8 * SCALE, 0 * 8 * SCALE, 21 * 8 * SCALE, 1, -1, 0.38),  # B: starts ~8 tiles higher
             ],
+            "level_4": [
+                # Two elevators in the same column, 8 tiles apart
+                # Column 4 (tile), range from row 0 to row 21 (full screen)
+                (19 * 8 * SCALE, 0 * 8 * SCALE, 21 * 8 * SCALE, 1, -1, 0.0),   # A: starts at bottom
+                (19* 8 * SCALE, 0 * 8 * SCALE, 21 * 8 * SCALE, 1, -1, 0.38),  # B: starts ~8 tiles higher
+            ],
+            "level_5": [
+                # Two elevators in the same column, 8 tiles apart
+                # Column 4 (tile), range from row 0 to row 21 (full screen)
+                (26 * 8 * SCALE, 0 * 8 * SCALE, 21 * 8 * SCALE, 1, -1, 0.0),   # A: starts at bottom
+                (26 * 8 * SCALE, 0 * 8 * SCALE, 21 * 8 * SCALE, 1, -1, 0.38),  # B: starts ~8 tiles higher
+            ],
+            "level_6": [
+                # Two elevators in the same column, 8 tiles apart
+                # Column 4 (tile), range from row 0 to row 21 (full screen)
+                (16 * 8 * SCALE, 0 * 8 * SCALE, 21 * 8 * SCALE, 1, -1, 0.0),   # A: starts at bottom
+                (16 * 8 * SCALE, 0 * 8 * SCALE, 21 * 8 * SCALE, 1, -1, 0.38),  # B: starts ~8 tiles higher
+            ],
+            "level_7": [
+                # Two elevators in the same column, 8 tiles apart
+                # Column 4 (tile), range from row 0 to row 21 (full screen)
+                (31 * 8 * SCALE, 0 * 8 * SCALE, 21 * 8 * SCALE, 1, -1, 0.0),   # A: starts at bottom
+                (31 * 8 * SCALE, 0 * 8 * SCALE, 21 * 8 * SCALE, 1, -1, 0.38),  # B: starts ~8 tiles higher
+            ],
             # Add more levels as needed
         }
         

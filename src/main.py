@@ -21,7 +21,7 @@ def main():
     level.set_level('level_1') # Start with Level 1
     
     from .entities import Player
-    player = Player(96, 96, res_manager) # Spawn at 96,96 (Aligned to 24px grid)
+    player = Player(100 * SCALE, 144 * SCALE, res_manager) # Authentic spawn (100, 23 from bottom)
     
     # Game states
     STATE_INTRO = 0
