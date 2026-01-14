@@ -7,6 +7,9 @@ WINDOW_WIDTH = SCREEN_WIDTH * SCALE
 WINDOW_HEIGHT = SCREEN_HEIGHT * SCALE
 FPS = 50
 
+# Map offset: Shift the game area down by 2 rows to leave room for HUD
+MAP_OFFSET_Y = 3 * 8  # 2 rows = 16 pixels (unscaled)
+
 # Colors (Spectrum Palette)
 COLOR_BLACK = (0, 0, 0)
 COLOR_BLUE = (0, 0, 205)

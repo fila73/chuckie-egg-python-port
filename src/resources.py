@@ -9,6 +9,8 @@ class ResourceManager:
         self.sprites = {}
         self.tiles = {}
         self.sounds = {}
+        self.hud_assets = {}
+        self.fonts = {}
         self.loading_screen = None
         
     def load_image(self, filename):
@@ -82,6 +84,38 @@ class ResourceManager:
                 self.sounds[key] = pygame.mixer.Sound(path)
             except Exception as e:
                 print(f"Failed to load sound {filename}: {e}")
+        
+        # Load HUD Labels
+        hud_labels = {
+            'score': 'gfx_label_score.png',
+            'player': 'gfx_label_player.png',
+            'level': 'gfx_label_level.png',
+            'bonus': 'gfx_label_bonus.png',
+            'time': 'gfx_label_time.png',
+            'lives': 'gfx_icon_lives.png'
+        }
+        for key, filename in hud_labels.items():
+            img = self.load_image(filename)
+            # Tint labels to White, lives to Yellow
+            color = COLOR_YELLOW if key == 'lives' else COLOR_WHITE
+            self.hud_assets[key] = self.tint(img, color)
+
+        # Load Fonts
+        img_font_all = self.load_image('font_all.png')
+        img_font_nums = self.load_image('font_numbers_bold.png')
+        
+        # Slice font_all (Assume digits 0-9 are at index 16 if it's standard ASCII shift)
+        self.fonts['score'] = []
+        for i in range(10):
+            # 8x472 -> 59 chars. Digit '0' is usually at index 16 (shift 32 from ' ')
+            digit = img_font_all.subsurface((0, (16 + i) * 8, 8, 8))
+            self.fonts['score'].append(self.tint(digit, COLOR_WHITE))
+            
+        # Slice font_numbers_bold (digits 0-9)
+        self.fonts['data'] = []
+        for i in range(10):
+            digit = img_font_nums.subsurface((0, i * 8, 8, 8))
+            self.fonts['data'].append(self.tint(digit, COLOR_WHITE))
         
         # Coloring
         # Tinting: Fill a surface with color and multiply?

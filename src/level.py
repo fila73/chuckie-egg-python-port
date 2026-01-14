@@ -37,32 +37,32 @@ class Level:
             "level_3": [
                 # Two elevators in the same column, 8 tiles apart
                 # Column 4 (tile), range from row 0 to row 21 (full screen)
-                (9 * 8 * SCALE, 0 * 8 * SCALE, 21 * 8 * SCALE, 1, -1, 0.0),   # A: starts at bottom
-                (9 * 8 * SCALE, 0 * 8 * SCALE, 21 * 8 * SCALE, 1, -1, 0.38),  # B: starts ~8 tiles higher
+                (9 * 8 * SCALE, MAP_OFFSET_Y * SCALE, (21 * 8 + MAP_OFFSET_Y) * SCALE, 1, -1, 0.0),   # A: starts at bottom
+                (9 * 8 * SCALE, MAP_OFFSET_Y * SCALE, (21 * 8 + MAP_OFFSET_Y) * SCALE, 1, -1, 0.38),  # B: starts ~8 tiles higher
             ],
             "level_4": [
                 # Two elevators in the same column, 8 tiles apart
                 # Column 4 (tile), range from row 0 to row 21 (full screen)
-                (19 * 8 * SCALE, 0 * 8 * SCALE, 21 * 8 * SCALE, 1, -1, 0.0),   # A: starts at bottom
-                (19* 8 * SCALE, 0 * 8 * SCALE, 21 * 8 * SCALE, 1, -1, 0.38),  # B: starts ~8 tiles higher
+                (19 * 8 * SCALE, MAP_OFFSET_Y * SCALE, (21 * 8 + MAP_OFFSET_Y) * SCALE, 1, -1, 0.0),   # A: starts at bottom
+                (19* 8 * SCALE, MAP_OFFSET_Y * SCALE, (21 * 8 + MAP_OFFSET_Y) * SCALE, 1, -1, 0.38),  # B: starts ~8 tiles higher
             ],
             "level_5": [
                 # Two elevators in the same column, 8 tiles apart
                 # Column 4 (tile), range from row 0 to row 21 (full screen)
-                (26 * 8 * SCALE, 0 * 8 * SCALE, 21 * 8 * SCALE, 1, -1, 0.0),   # A: starts at bottom
-                (26 * 8 * SCALE, 0 * 8 * SCALE, 21 * 8 * SCALE, 1, -1, 0.38),  # B: starts ~8 tiles higher
+                (26 * 8 * SCALE, MAP_OFFSET_Y * SCALE, (21 * 8 + MAP_OFFSET_Y) * SCALE, 1, -1, 0.0),   # A: starts at bottom
+                (26 * 8 * SCALE, MAP_OFFSET_Y * SCALE, (21 * 8 + MAP_OFFSET_Y) * SCALE, 1, -1, 0.38),  # B: starts ~8 tiles higher
             ],
             "level_6": [
                 # Two elevators in the same column, 8 tiles apart
                 # Column 4 (tile), range from row 0 to row 21 (full screen)
-                (16 * 8 * SCALE, 0 * 8 * SCALE, 21 * 8 * SCALE, 1, -1, 0.0),   # A: starts at bottom
-                (16 * 8 * SCALE, 0 * 8 * SCALE, 21 * 8 * SCALE, 1, -1, 0.38),  # B: starts ~8 tiles higher
+                (16 * 8 * SCALE, MAP_OFFSET_Y * SCALE, (21 * 8 + MAP_OFFSET_Y) * SCALE, 1, -1, 0.0),   # A: starts at bottom
+                (16 * 8 * SCALE, MAP_OFFSET_Y * SCALE, (21 * 8 + MAP_OFFSET_Y) * SCALE, 1, -1, 0.38),  # B: starts ~8 tiles higher
             ],
             "level_7": [
                 # Two elevators in the same column, 8 tiles apart
                 # Column 4 (tile), range from row 0 to row 21 (full screen)
-                (31 * 8 * SCALE, 0 * 8 * SCALE, 21 * 8 * SCALE, 1, -1, 0.0),   # A: starts at bottom
-                (31 * 8 * SCALE, 0 * 8 * SCALE, 21 * 8 * SCALE, 1, -1, 0.38),  # B: starts ~8 tiles higher
+                (31 * 8 * SCALE, MAP_OFFSET_Y * SCALE, (21 * 8 + MAP_OFFSET_Y) * SCALE, 1, -1, 0.0),   # A: starts at bottom
+                (31 * 8 * SCALE, MAP_OFFSET_Y * SCALE, (21 * 8 + MAP_OFFSET_Y) * SCALE, 1, -1, 0.38),  # B: starts ~8 tiles higher
             ],
             # Add more levels as needed
         }
@@ -95,7 +95,7 @@ class Level:
                 if tile_img:
                     # Calculate position
                     x = col_idx * 8 * SCALE
-                    y = row_idx * 8 * SCALE
+                    y = row_idx * 8 * SCALE + MAP_OFFSET_Y * SCALE
                     
                     # Scale tile?
                     # The assets are 8x8. We need to scale them to SCALE (3x).
@@ -122,3 +122,12 @@ class Level:
         if row < 0 or row >= len(self.grid): return
         if col < 0 or col >= len(self.grid[0]): return
         self.grid[row][col] = tile_id
+
+    def count_eggs(self):
+        count = 0
+        if not self.grid: return 0
+        for row in self.grid:
+            for tile_id in row:
+                if tile_id == TILE_EGG:
+                    count += 1
+        return count

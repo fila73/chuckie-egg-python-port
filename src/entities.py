@@ -2,6 +2,15 @@ from src.constants import SCALE
 import pygame
 from .constants import *
 
+def pixel_to_row(y_pixel):
+    """Convert pixel Y coordinate to grid row, accounting for map offset."""
+    return (y_pixel - MAP_OFFSET_Y * SCALE) // (8 * SCALE)
+
+def pixel_to_col(x_pixel):
+    """Convert pixel X coordinate to grid column."""
+    return x_pixel // (8 * SCALE)
+
+
 class Entity:
     def __init__(self, x, y, width, height):
         self.rect = pygame.Rect(x, y, width, height)
@@ -17,7 +26,12 @@ class Entity:
 
 class Player(Entity):
     def __init__(self, x, y, resource_manager):
-        super().__init__(x, y, 16 * SCALE, 16 * SCALE)
+        # Harry's authentic spawn point: X=100, Y=23 (Spectrum coords)
+        # User confirmed (100, 144) scaled, plus 2 rows for HUD offset.
+        self.spawn_x = 100 * SCALE
+        self.spawn_y = (144 + MAP_OFFSET_Y) * SCALE
+        
+        super().__init__(self.spawn_x, self.spawn_y, 16 * SCALE, 16 * SCALE)
         self.resources = resource_manager
         
         # State Constants
@@ -145,7 +159,7 @@ class Player(Entity):
                 
                 # 1. Determine the Column (c) based on center x
                 #    (We use center because we enforce alignment later)
-                c = self.rect.centerx // (8 * SCALE)
+                c = pixel_to_col(self.rect.centerx)
                 
                 # 2. Determine the Row (r) based on direction
                 target_tile = None
@@ -153,14 +167,14 @@ class Player(Entity):
                 if keys[pygame.K_UP]:
                     # For UP: Check the tile just ABOVE top of the body.
                     # This ensures we are physically "under" the ladder we want to climb.
-                    r_up = (self.rect.top - 1) // (8 * SCALE)
+                    r_up = pixel_to_row(self.rect.top - 1)
                     target_tile = level.get_tile(c, r_up)
                     
                 elif keys[pygame.K_DOWN]:
                     # For DOWN: Check the tile just BELOW the feet.
                     # We add +1 pixel to rect.bottom to check the tile *under* the player.
                     # This allows climbing down when standing ON TOP of a ladder.
-                    r_down = (self.rect.bottom + 1) // (8 * SCALE)
+                    r_down = pixel_to_row(self.rect.bottom + 1)
                     target_tile = level.get_tile(c, r_down)
 
                 # 3. Check if the identified tile is actually a ladder
@@ -180,10 +194,10 @@ class Player(Entity):
                         # to ensure exit logic (y % 24 == 0) works correctly.
                         if keys[pygame.K_UP]:
                              # Snap top to the bottom of the tile we are entering
-                             self.rect.top = (r_up + 1) * 8 * SCALE
+                             self.rect.top = (r_up + 1) * 8 * SCALE + MAP_OFFSET_Y * SCALE
                         elif keys[pygame.K_DOWN]:
                              # Snap bottom to the top of the tile we are entering
-                             self.rect.bottom = r_down * 8 * SCALE
+                             self.rect.bottom = r_down * 8 * SCALE + MAP_OFFSET_Y * SCALE
                              
                         move_x = 0
 
@@ -243,8 +257,8 @@ class Player(Entity):
                   if self.rect.y % (4 * SCALE) == 0:
                        self.resources.play_sound('climb')
 
-             c = self.rect.centerx // (8 * SCALE)
-             r_bottom = (self.rect.bottom) // (8 * SCALE)
+             c = pixel_to_col(self.rect.centerx)
+             r_bottom = pixel_to_row(self.rect.bottom)
 
              # Vertical Exit (Step 4)
              # Check if we should exit vertically (only at tile boundaries)
@@ -252,7 +266,7 @@ class Player(Entity):
                   if keys[pygame.K_UP]:
                        # Topping out: check if there's no more ladder above us
                        # Harry is 16px high (2 tiles). Check the tile at his head level.
-                       r_head = (self.rect.top - 1) // (8 * SCALE)
+                       r_head = pixel_to_row(self.rect.top - 1)
                        if level.get_tile(c, r_head) not in [TILE_LADDER_L, TILE_LADDER_R]:
                             self.state = self.STATE_STAND
                             
@@ -312,8 +326,8 @@ class Player(Entity):
                        self.state = self.STATE_STAND
                        self.jump_vx = 0
 
-        # Death check: Harry's feet fell below the lowest platform
-        if self.rect.bottom > 21 * 8 * SCALE:
+        # Death check: Harry's feet fell below the lowest platform (21 rows + 2 row offset)
+        if self.rect.bottom > (21 * 8 + MAP_OFFSET_Y) * SCALE:
              if self.state != self.STATE_DEATH:
                   self.state = self.STATE_DEATH
                   self.death_start_time = pygame.time.get_ticks()
@@ -334,15 +348,15 @@ class Player(Entity):
 
         # Check only the leading edge in the direction of movement
         if dx > 0:
-             c = (self.rect.right - 4) // (8 * SCALE)
+             c = pixel_to_col(self.rect.right - 4)
         else:
-             c = (self.rect.left + 4) // (8 * SCALE)
+             c = pixel_to_col(self.rect.left + 4)
              
-        r_top = self.rect.top // (8 * SCALE)
+        r_top = pixel_to_row(self.rect.top)
         # "Toes" tolerance: Don't check the very bottom pixels against walls
         # to avoid colliding with the floor Harry is standing on.
         v_offset = 2 * SCALE
-        r_bottom = (self.rect.bottom - 1 - v_offset) // (8 * SCALE)
+        r_bottom = pixel_to_row(self.rect.bottom - 1 - v_offset)
         
         for r in range(r_top, r_bottom + 1):
              if level.get_tile(c, r) == TILE_FLOOR:
@@ -361,14 +375,14 @@ class Player(Entity):
             # Moving left: check the right edge (heel)
             check_x = self.rect.centerx
             
-        c = check_x // (8 * SCALE)
-        r = self.rect.bottom // (8 * SCALE)
+        c = pixel_to_col(check_x)
+        r = pixel_to_row(self.rect.bottom)
         t = level.get_tile(c, r)
        
         if dy > 0: # Falling
             # Always land on Floor
             if t == TILE_FLOOR:
-                self.rect.bottom = r * 8 * SCALE
+                self.rect.bottom = r * 8 * SCALE + MAP_OFFSET_Y * SCALE
                 self.state = self.STATE_STAND
                 return
                
@@ -386,7 +400,7 @@ class Player(Entity):
                     land_on_ladder = True
                     
                 if land_on_ladder:
-                    self.rect.bottom = r * 8 * SCALE
+                    self.rect.bottom = r * 8 * SCALE + MAP_OFFSET_Y * SCALE
                     self.state = self.STATE_STAND
                     return
 
@@ -399,8 +413,8 @@ class Player(Entity):
             # Moving left: check the right edge (heel)
             check_x = self.rect.centerx
             
-        c = check_x // (8 * SCALE)
-        r = self.rect.bottom // (8 * SCALE)
+        c = pixel_to_col(check_x)
+        r = pixel_to_row(self.rect.bottom)
         t = level.get_tile(c, r)
         
         # Solid check
@@ -465,18 +479,19 @@ class Player(Entity):
     def check_collectibles(self, level):
         cx = self.rect.centerx
         cy = self.rect.centery
-        c = cx // (8 * SCALE)
-        r = cy // (8 * SCALE)
+        c = pixel_to_col(cx)
+        r = pixel_to_row(cy)
         
         t = level.get_tile(c, r)
         if t == TILE_EGG:
-             print("Collected Egg!")
-             level.set_tile(c, r, TILE_EMPTY)
-             self.resources.play_sound('collect')
+            level.set_tile(c, r, TILE_EMPTY)
+            self.resources.play_sound('collect')
+            return TILE_EGG
         elif t == TILE_CORN:
-             print("Collected Corn!")
-             level.set_tile(c, r, TILE_EMPTY)
-             self.resources.play_sound('collect')
+            level.set_tile(c, r, TILE_EMPTY)
+            self.resources.play_sound('collect')
+            return TILE_CORN
+        return None
  
     def draw(self, surface):
         anim_key = self.facing
