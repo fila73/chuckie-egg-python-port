@@ -23,6 +23,14 @@ def main():
     from .entities import Player
     player = Player(96, 96, res_manager) # Spawn at 96,96 (Aligned to 24px grid)
     
+    # Game states
+    STATE_INTRO = 0
+    STATE_GAME = 1
+    game_state = STATE_INTRO
+    
+    # Start Intro
+    res_manager.play_music('theme', loops=0)
+    
     running = True
     while running:
         # Event handling
@@ -31,6 +39,11 @@ def main():
             if event.type == pygame.QUIT:
                 running = False
             if event.type == pygame.KEYDOWN:
+                if game_state == STATE_INTRO:
+                    game_state = STATE_GAME
+                    res_manager.stop_music('theme')
+                    continue
+
                 if event.key == pygame.K_ESCAPE:
                     running = False
                 elif event.key == pygame.K_1:
@@ -51,13 +64,19 @@ def main():
                     level.set_level('level_8')
                     
         # Update
-        player.update(level, keys)
+        if game_state == STATE_GAME:
+            level.update_elevators()
+            player.update(level, keys)
         
         # Render
         screen.fill(COLOR_BLACK)
         
-        level.draw(screen)
-        player.draw(screen)
+        if game_state == STATE_INTRO:
+            if res_manager.loading_screen:
+                screen.blit(res_manager.loading_screen, (0, 0))
+        else:
+            level.draw(screen)
+            player.draw(screen)
         
         pygame.display.flip()
         clock.tick(FPS)

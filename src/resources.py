@@ -8,6 +8,8 @@ class ResourceManager:
         self.assets_dir = assets_dir
         self.sprites = {}
         self.tiles = {}
+        self.sounds = {}
+        self.loading_screen = None
         
     def load_image(self, filename):
         path = os.path.join(self.assets_dir, 'sprites', filename)
@@ -56,6 +58,31 @@ class ResourceManager:
         self.tiles[TILE_EGG] = img_egg
         self.tiles[TILE_CORN] = img_corn
         
+        # Load loading screen
+        try:
+            ls_path = os.path.join(self.assets_dir, 'graphics', 'loading_screen.png')
+            self.loading_screen = pygame.image.load(ls_path).convert()
+            # Scale to current screen scale
+            orig_w, orig_h = self.loading_screen.get_size()
+            self.loading_screen = pygame.transform.scale(self.loading_screen, (orig_w * SCALE, orig_h * SCALE))
+        except Exception as e:
+            print(f"Failed to load loading screen: {e}")
+
+        # Load sounds
+        sound_files = {
+            'death': 'death_tune.wav',
+            'walk': 'sfx_walk.wav',
+            'climb': 'sfx_climb.wav',
+            'collect': 'sfx_collect.wav',
+            'jump': 'sfx_jump.wav'
+        }
+        for key, filename in sound_files.items():
+            path = os.path.join(self.assets_dir, 'sounds', filename)
+            try:
+                self.sounds[key] = pygame.mixer.Sound(path)
+            except Exception as e:
+                print(f"Failed to load sound {filename}: {e}")
+        
         # Coloring
         # Tinting: Fill a surface with color and multiply?
         self.tiles[TILE_FLOOR] = self.tint(self.tiles[TILE_FLOOR], COLOR_GREEN) 
@@ -77,3 +104,21 @@ class ResourceManager:
         # Yes, extract_graphics makes white pixels.
         colored.fill(color, special_flags=pygame.BLEND_RGBA_MULT)
         return colored
+
+    def play_sound(self, name):
+        if name in self.sounds:
+            self.sounds[name].play()
+
+    def play_music(self, name, loops=-1):
+        if name == 'theme':
+            path = os.path.join(self.assets_dir, 'sounds', 'theme_tune.wav')
+            pygame.mixer.music.load(path)
+            pygame.mixer.music.play(loops=loops)
+        elif name in self.sounds:
+            self.sounds[name].play(loops=loops)
+
+    def stop_music(self, name):
+        if name == 'theme':
+            pygame.mixer.music.stop()
+        elif name in self.sounds:
+            self.sounds[name].stop()

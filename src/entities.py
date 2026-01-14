@@ -27,12 +27,20 @@ class Player(Entity):
         self.STATE_CLIMB = 3
         self.STATE_AIR_UP = 4    # Jumping Up
         self.STATE_AIR_DOWN = 5  # Falling
+        self.STATE_ELEVATOR = 6  # Riding an elevator
+        self.STATE_DEATH = 7     # Dying (waiting for music)
         
         self.state = self.STATE_STAND
         self.facing = 'right' # Visual facing
         
         self.jump_timer = 0
         self.jump_vx = 0 # Horizontal velocity during jump (Committed direction)
+        self.current_elevator = None  # Reference to elevator Harry is standing on
+        
+        # Spawn position for respawn after death
+        self.spawn_x = x
+        self.spawn_y = y
+        self.death_start_time = 0 # To track death tune duration
         
         self.frame_timer = 0
         self.current_frame = 0
@@ -83,6 +91,12 @@ class Player(Entity):
     def update(self, level, keys):
         SPEED = 1 * SCALE
         
+        # 0. IGNORE EVERYTHING IF DEAD
+        if self.state == self.STATE_DEATH:
+             if pygame.time.get_ticks() - self.death_start_time > 10000: # 10s roughly
+                  self.respawn()
+             return
+
         # 1. DETERMINE X MOVEMENT
         move_x = 0
         
@@ -112,6 +126,9 @@ class Player(Entity):
              start_x = self.rect.x
              self.rect.x += move_x
              self.check_collision_x(level, move_x)
+             # Play walk sound every 4 pixels
+             if self.state in [self.STATE_WALK_LEFT, self.STATE_WALK_RIGHT] and self.rect.x % (4 * SCALE) == 0:
+                  self.resources.play_sound('walk')
              
              # If we hit a wall in air, kill momentum
              if is_airborne:
@@ -175,6 +192,7 @@ class Player(Entity):
         if self.state in [self.STATE_STAND, self.STATE_WALK_LEFT, self.STATE_WALK_RIGHT, self.STATE_CLIMB] and keys[pygame.K_SPACE]:
              self.state = self.STATE_AIR_UP
              self.jump_timer = 0
+             self.resources.play_sound('jump')
              # COMMIT DIRECTION based on PRESSED KEYS
              self.jump_vx = 0
              if keys[pygame.K_LEFT]: self.jump_vx = -SPEED
@@ -201,16 +219,29 @@ class Player(Entity):
         elif self.state == self.STATE_AIR_DOWN:
              # Falling
              self.rect.y += V_SPEED
-             self.check_collision_y(level, V_SPEED)
+             
+             # Check if landing on elevator while falling
+             elevator = self.check_elevator_collision(level)
+             if elevator:
+                  self.state = self.STATE_ELEVATOR
+                  self.current_elevator = elevator
+                  self.rect.bottom = elevator.rect.top
+                  self.jump_vx = 0
+             else:
+                  self.check_collision_y(level, V_SPEED)
              
         elif self.state == self.STATE_CLIMB:
              # CLIMBING (Step 2 & 3)
              if keys[pygame.K_UP]:
                   self.rect.y -= SPEED
                   self.update_animation() # Update climb frames
+                  if self.rect.y % (4 * SCALE) == 0:
+                       self.resources.play_sound('climb')
              elif keys[pygame.K_DOWN]:
                   self.rect.y += SPEED
                   self.update_animation() # Update climb frames
+                  if self.rect.y % (4 * SCALE) == 0:
+                       self.resources.play_sound('climb')
 
              c = self.rect.centerx // (8 * SCALE)
              r_bottom = (self.rect.bottom) // (8 * SCALE)
@@ -245,8 +276,30 @@ class Player(Entity):
              
         else:
              # GRAVITY / SUPPORT Check (when not Jumping Up or Climbing)
-             if not self.check_support(level):
+             
+             # First check if standing on an elevator
+             elevator = self.check_elevator_collision(level)
+             if elevator:
+                  # Land on elevator
+                  self.state = self.STATE_ELEVATOR
+                  self.current_elevator = elevator
+                  self.rect.bottom = elevator.rect.top
+                  self.jump_vx = 0
+             elif self.state == self.STATE_ELEVATOR:
+                  # Currently on elevator - check if still on it
+                  if self.current_elevator:
+                       # Move with elevator
+                       self.rect.bottom = self.current_elevator.rect.top
+                       
+                       # Check if we've moved off horizontally
+                       if not self.rect.colliderect(self.current_elevator.rect.inflate(4, 8)):
+                            self.state = self.STATE_AIR_DOWN
+                            self.current_elevator = None
+                  else:
+                       self.state = self.STATE_AIR_DOWN
+             elif not self.check_support(level):
                   self.state = self.STATE_AIR_DOWN
+                  self.current_elevator = None
                   self.rect.y += SPEED
                   self.check_collision_y(level, SPEED)
                   # If walking off ledge, do we keep momentum?
@@ -258,6 +311,13 @@ class Player(Entity):
                   if self.state == self.STATE_AIR_DOWN:
                        self.state = self.STATE_STAND
                        self.jump_vx = 0
+
+        # Death check: Harry's feet fell below the lowest platform
+        if self.rect.bottom > 21 * 8 * SCALE:
+             if self.state != self.STATE_DEATH:
+                  self.state = self.STATE_DEATH
+                  self.death_start_time = pygame.time.get_ticks()
+                  self.resources.play_sound('death')
 
         self.update_animation()
         self.check_collectibles(level)
@@ -350,6 +410,40 @@ class Player(Entity):
                   
         return True
 
+    def check_elevator_collision(self, level):
+        """
+        Check if Harry is standing on an elevator.
+        Returns the elevator if found, None otherwise.
+        """
+        # Create a small rect at Harry's feet to check for elevator collision
+        feet_rect = pygame.Rect(
+            self.rect.left,
+            self.rect.bottom,
+            self.rect.width,
+            4 * SCALE  # Check a few pixels below feet
+        )
+        
+        for elevator in level.elevators:
+            # Check if Harry's feet are near the elevator's top surface
+            if feet_rect.colliderect(elevator.rect):
+                # Horizontal alignment check
+                if (self.rect.centerx > elevator.rect.left and 
+                    self.rect.centerx < elevator.rect.right):
+                    return elevator
+        
+        return None
+
+    def respawn(self):
+        """Reset Harry to spawn position after death."""
+        # No sound call here anymore, it's triggered when entering STATE_DEATH
+        self.rect.x = self.spawn_x
+        self.rect.y = self.spawn_y
+        self.state = self.STATE_STAND
+        self.jump_timer = 0
+        self.jump_vx = 0
+        self.current_elevator = None
+        self.facing = 'right'
+
     def update_animation(self):
         # Simple frame cycler
         if self.state in [self.STATE_WALK_LEFT, self.STATE_WALK_RIGHT, self.STATE_CLIMB]:
@@ -378,9 +472,11 @@ class Player(Entity):
         if t == TILE_EGG:
              print("Collected Egg!")
              level.set_tile(c, r, TILE_EMPTY)
+             self.resources.play_sound('collect')
         elif t == TILE_CORN:
              print("Collected Corn!")
              level.set_tile(c, r, TILE_EMPTY)
+             self.resources.play_sound('collect')
  
     def draw(self, surface):
         anim_key = self.facing
@@ -392,3 +488,51 @@ class Player(Entity):
              
         idx = self.current_frame % len(frames)
         surface.blit(frames[idx], self.rect)
+
+
+class Elevator(Entity):
+    """
+    Vertical moving platform (lift) that loops endlessly.
+    Harry can stand on it and be carried up or down.
+    """
+    def __init__(self, x, y_top, y_bottom, speed=1, direction=-1):
+        """
+        Args:
+            x: Horizontal position (center x of the platform).
+            y_top: The top boundary (minimum y) of the elevator's range.
+            y_bottom: The bottom boundary (maximum y) of the elevator's range.
+            speed: Speed in pixels per frame (scaled).
+            direction: -1 for moving up initially, +1 for moving down.
+        """
+        # Platform is 2 tiles wide (16px * SCALE) and 1 tile tall (8px * SCALE)
+        width = 16 * SCALE
+        height = 4 * SCALE  # Visual height of the platform bar
+        
+        # Start position
+        start_y = y_bottom if direction == -1 else y_top
+        super().__init__(x - width // 2, start_y, width, height)
+        
+        self.y_top = y_top
+        self.y_bottom = y_bottom
+        self.speed = speed * 2 # Speed in raw pixels (not scaled for slower movement)
+        self.direction = direction  # -1 = up, +1 = down
+        
+        # Create a simple visual surface
+        self.image = pygame.Surface((width, height))
+        self.image.fill(COLOR_YELLOW)  # Authentic Spectrum color
+
+    def update(self, level=None):
+        """Move the elevator and wrap around at boundaries."""
+        self.rect.y += self.direction * self.speed
+        
+        # Check wrapping
+        if self.direction == -1 and self.rect.top < self.y_top:
+            # Moving up, reached top -> wrap to bottom
+            self.rect.bottom = self.y_bottom
+        elif self.direction == 1 and self.rect.bottom > self.y_bottom:
+            # Moving down, reached bottom -> wrap to top
+            self.rect.top = self.y_top
+
+    def draw(self, surface):
+        """Draw the elevator platform."""
+        surface.blit(self.image, self.rect)
