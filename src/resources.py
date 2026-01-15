@@ -76,7 +76,8 @@ class ResourceManager:
             'walk': 'sfx_walk.wav',
             'climb': 'sfx_climb.wav',
             'collect': 'sfx_collect.wav',
-            'jump': 'sfx_jump.wav'
+            'jump': 'sfx_jump.wav',
+            'bonus': 'sfx_bonus.wav'
         }
         for key, filename in sound_files.items():
             path = os.path.join(self.assets_dir, 'sounds', filename)
@@ -116,6 +117,42 @@ class ResourceManager:
         for i in range(10):
             digit = img_font_nums.subsurface((0, i * 8, 8, 8))
             self.fonts['data'].append(self.tint(digit, COLOR_WHITE))
+        
+        # Load Enemy Sprites (Ostrich / Hen) - Cyan
+        # Walk Left
+        self.sprites['hen_left_0'] = self.tint(self.load_image('sprites_ostrich_left.png'), COLOR_CYAN)
+        self.sprites['hen_left_1'] = self.tint(self.load_image('sprites_ostrich_left_walk.png'), COLOR_CYAN)
+        self.sprites['hen_left_2'] = self.sprites['hen_left_0'] # Cycle
+        self.sprites['hen_left_3'] = self.sprites['hen_left_1'] # Cycle
+        
+        # Walk Right
+        self.sprites['hen_right_0'] = self.tint(self.load_image('sprites_ostrich_right.png'), COLOR_CYAN)
+        self.sprites['hen_right_1'] = self.tint(self.load_image('sprites_ostrich_right_walk.png'), COLOR_CYAN)
+        self.sprites['hen_right_2'] = self.sprites['hen_right_0']
+        self.sprites['hen_right_3'] = self.sprites['hen_right_1']
+        
+        # Climb (One sprite for now?)
+        # User Correction: "sprites_ostrich_climbing.png jsou 2 pozice spritu nad sebou"
+        img_climb_strip = self.load_image('sprites_ostrich_climbing.png')
+        # Assume 16x16 frames, strip is 16x32
+        self.sprites['hen_climb_0'] = self.tint(img_climb_strip.subsurface((0, 0, 16, 16)), COLOR_CYAN)
+        self.sprites['hen_climb_1'] = self.tint(img_climb_strip.subsurface((0, 16, 16, 16)), COLOR_CYAN)
+
+        # Mother Duck - Yellow
+        # User Correction: "sprites_duck_left a sprites_duck_right jsou taky 2 sprity nad sebou"
+        # Walk Left Strip
+        duck_l_strip = self.load_image('sprites_duck_left.png')
+        self.sprites['duck_left_0'] = self.tint(duck_l_strip.subsurface((0, 0, 16, 16)), COLOR_YELLOW)
+        self.sprites['duck_left_1'] = self.tint(duck_l_strip.subsurface((0, 16, 16, 16)), COLOR_YELLOW)
+        
+        # Walk Right Strip
+        duck_r_strip = self.load_image('sprites_duck_right.png')
+        self.sprites['duck_right_0'] = self.tint(duck_r_strip.subsurface((0, 0, 16, 16)), COLOR_YELLOW)
+        self.sprites['duck_right_1'] = self.tint(duck_r_strip.subsurface((0, 16, 16, 16)), COLOR_YELLOW)
+        
+        # Birdcage - Yellow
+        self.sprites['cage'] = self.tint(self.load_image('gfx_tile_birdcage.png'), COLOR_YELLOW)
+        self.sprites['cage_handle'] = self.tint(self.load_image('gfx_tile_birdcage_handle.png'), COLOR_YELLOW)
         
         # Coloring
         # Tinting: Fill a surface with color and multiply?
