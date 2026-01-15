@@ -106,21 +106,20 @@ def main():
 
                 level.update_elevators()
                 player.update(level, keys)
-            
-            # Check collections
-            item = player.check_collectibles(level)
-            if item:
-                if item == TILE_EGG:
-                    score += 100
-                elif item == TILE_CORN:
-                    score += 50
-                timer_freeze = 150 # 3 seconds at 50 FPS
                 
-                # Check Extra Life
-                if score >= extra_life_target:
-                    lives += 1
-                    extra_life_target += 10000
-                    # Original game plays a sound? We don't have one extracted yet.
+                # Check collections (only when player is alive)
+                item = player.check_collectibles(level)
+                if item:
+                    if item == TILE_EGG:
+                        score += 100
+                    elif item == TILE_CORN:
+                        score += 50
+                    timer_freeze = 150 # 3 seconds at 50 FPS
+                    
+                    # Check Extra Life
+                    if score >= extra_life_target:
+                        lives += 1
+                        extra_life_target += 10000
             
             # Check Level Completion
             # We need a way to count eggs. Let's add it to Level class.

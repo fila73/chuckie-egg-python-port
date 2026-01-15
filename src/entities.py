@@ -203,7 +203,7 @@ class Player(Entity):
 
         # 4. JUMP START
         # Can only jump if on ground or climbing
-        if self.state in [self.STATE_STAND, self.STATE_WALK_LEFT, self.STATE_WALK_RIGHT, self.STATE_CLIMB] and keys[pygame.K_SPACE]:
+        if self.state in [self.STATE_STAND, self.STATE_WALK_LEFT, self.STATE_WALK_RIGHT, self.STATE_CLIMB] and (keys[pygame.K_SPACE] or keys[pygame.K_m]):
              self.state = self.STATE_AIR_UP
              self.jump_timer = 0
              self.resources.play_sound('jump')
@@ -334,7 +334,7 @@ class Player(Entity):
                   self.resources.play_sound('death')
 
         self.update_animation()
-        self.check_collectibles(level)
+        # Note: check_collectibles is called from main.py to handle scoring
 
     def check_collision_x(self, level, dx):
         # Screen bounds
