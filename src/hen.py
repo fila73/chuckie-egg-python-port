@@ -17,7 +17,7 @@ HEN_SPAWN_DATA = {
 
 # Number of active hens per level in first playthrough
 HEN_ACTIVE_COUNT = {
-    1: 2, 2: 2, 3: 3, 4: 4, 5: 2, 6: 3, 7: 4, 8: 5
+    1: 2, 2: 2, 3: 3, 4: 4, 5: 2, 6: 3, 7: 4, 8: 0
 }
 
 class Hen:
@@ -49,6 +49,15 @@ class Hen:
 
     # ... [Keep update methods same, just updating draw] ...
 
+
+    def pixel_to_row(self, y_pixel):
+        """Convert pixel Y coordinate to grid row."""
+        return int((y_pixel - MAP_OFFSET_Y * SCALE) // (8 * SCALE))
+
+    def pixel_to_col(self, x_pixel):
+        """Convert pixel X coordinate to grid column."""
+        return int(x_pixel // (8 * SCALE))
+
     def update(self, level, junction_counter):
         """Update hen position and AI."""
         if not self.active:
@@ -76,7 +85,7 @@ class Hen:
 
     def _move_horizontal(self, level, dx, junction_counter):
         """Move horizontally on platforms."""
-        # Use simple speed for now. 
+        # Calculate next X
         new_x = self.x + dx * self.speed
         
         # Check screen bounds
@@ -84,87 +93,174 @@ class Hen:
             self._reverse_direction()
             return
             
-        # Check for floor beneath
-        col = int((new_x + 8 * SCALE) // (8 * SCALE))
-        row = int((self.y + 16 * SCALE - MAP_OFFSET_Y * SCALE) // (8 * SCALE))
+        # Calculate current grid position (using center for column)
+        cx = new_x + 8 * SCALE
+        c = self.pixel_to_col(cx)
         
-        if row >= 0 and row < len(level.grid) and col >= 0 and col < len(level.grid[0]):
-            tile_below = level.grid[row][col] if row < len(level.grid) else TILE_EMPTY
-            
-            # Check if at ladder junction
-            # STRICT alignment check inside _at_ladder_junction
-            if self._at_ladder_junction(level, new_x, row): # Pass new_x
-                self._decide_junction(level, col, row, junction_counter)
-                if self.direction in [self.DIR_UP, self.DIR_DOWN]:
-                    # Snap x to center of ladder (ensure visual alignment)
-                    # Ladder tile left edge is col * 8 * SCALE.
-                    # Hen is 16 wide. Center is +8. Ladder center is +4.
-                    # Hen Left should be col * 8 * SCALE - 4 * SCALE? 
-                    # If Hen center aligns with Ladder center:
-                    # HenX + 8 = TileX + 4  => HenX = TileX - 4.
-                    # BUT Harry is 16px wide too. Check Harry logic.
-                    # Let's align LEFT edge of Hen to LEFT edge of Tile for now as that's simpler.
-                    # Wait, Hen width 16. Ladder width 8.
-                    # If Hen is centered: Hen Left is -4 from Tile Left.
-                    # Let's trust strict alignment logic below to dictate "close enough".
-                    # And SNAP to exactly aligned position.
-                    # If _at_ladder check uses strict alignment, we are close.
-                    # Just snap to "col * 8 * SCALE" if that's the canonical position? 
-                    # Or "col * 8 * SCALE - 4 * SCALE"?
-                    # Checking original code logic or just ensure it looks good.
-                    # Let's align to col * 8 * SCALE for now (Left matching Left of tile).
-                    # Actually if Hen is 2 tiles wide, and Ladder is 1 tile...
-                    # If Hen is at X, it covers [X, X+16].
-                    # Ladder at Col covers [Col*8, Col*8+8].
-                    # Center alignment: X+8 = Col*8+4 => X = Col*8 - 4.
-                    # Let's try X = Col*8 - 4 * SCALE.
-                    # But if I use strict alignment check `abs(center_diff) < speed`,
-                    # then I should snap to the target.
-                    
-                    # For now, simplistic snap to nearest tile boundary might be visually off if center is needed.
-                    # I will snap to `col * 8 * SCALE` (tile boundary) to be safe and consistent with grid.
-                    self.x = col * 8 * SCALE 
-                    return 
-                return
-                
-            # Check for edge of platform
-            if tile_below not in [TILE_FLOOR, TILE_LADDER_L, TILE_LADDER_R]:
-                self._reverse_direction()
-                return
-                
+        # Row is determined by feet/bottom-ish
+        # Hen is 16px high. If standing on row R, feet are at (R+1)*8?
+        # Player check: r_bottom = pixel_to_row(rect.bottom - 1 - offset)
+        # Here we use top-left y. 
+        # y represents top-left. +16 is bottom.
+        # If standing on floor, bottom aligns with grid.
+        # so r = pixel_to_row(y + 16 - small_offset)
+        r = self.pixel_to_row(self.y + 16 * SCALE - 1)
+        
+        # Bound checks
+        if r < 0 or r >= len(level.grid) or c < 0 or c >= len(level.grid[0]):
+             self._reverse_direction()
+             return
+
+        # 1. Check if we ran off the platform
+        tile_below = level.grid[r][c]
+        if tile_below not in [TILE_FLOOR, TILE_LADDER_L, TILE_LADDER_R]:
+             # Only reverse if we are predominantly over the empty tile
+             # i.e. our center has crossed into empty space? 
+             # OR if the leading edge has?
+             # Simple check: Flip if center is over void.
+             self._reverse_direction()
+             return
+
+        # 2. Check for Ladder Junctions (mimic Player Step 3)
+        # Check if we are passing a ladder.
+        # Check tile at feet level (should be standing ON it or AT it?)
+        # If we are walking, we are AT row 'r-1' effectively? No, standing on 'r'.
+        # Tile 'r' is floor/ladder-top.
+        # Ladder Up: Tile at 'r-1' (Head level) is Ladder.
+        # Ladder Down: Tile at 'r+1' (Below feet) is Ladder.
+        
+        # Determine current column center X
+        target_center_x = c * 8 * SCALE + 4 * SCALE # Wait, Hen is 16px. 
+        # Hen Center = x + 8. 
+        # Tile Center = c * 8 + 4.
+        # Player logic: rect.centerx == target_center_x
+        # But for Hen (width 16) vs Player (width 16).
+        # Ladder is 8px wide.
+        # My previous alignment fixes assumed Left Alignment.
+        # User wants "copy from harry". Harry uses `pixel_to_col(self.rect.centerx)`.
+        # And `target_center_x` depends on LADDER_L or R. 
+        # But hens treat TILE_LADDER_L/R similarly in my code context.
+        # Assuming we just align with the grid column `c`.
+        
+        # Check alignment narrowly
+        # If we are close to being centered on column 'c'?
+        # Or aligned with grid boundary? `new_x % (8*SCALE) == 0`.
+        
+        if int(new_x) % (8 * SCALE) == 0:
+             # Aligned grid-wise.
+             # Check for ladder possibilities
+             can_go_up = (r > 0) and level.grid[r-1][c] in [TILE_LADDER_L, TILE_LADDER_R]
+             can_go_down = (r < len(level.grid) - 1) and level.grid[r+1][c] in [TILE_LADDER_L, TILE_LADDER_R]
+             
+             if (can_go_up or can_go_down) and (junction_counter & 0x04): # Chance to take it
+                  # Decide
+                  want_up = False
+                  want_down = False
+                  
+                  if (junction_counter & 0x02): # Prefer Up
+                      if can_go_up: want_up = True
+                      elif can_go_down: want_down = True
+                  else: # Prefer Down
+                      if can_go_down: want_down = True
+                      elif can_go_up: want_up = True
+                      
+                  if want_up:
+                       self.direction = self.DIR_UP
+                       self.x = new_x # Snap X
+                       return
+                  elif want_down:
+                       self.direction = self.DIR_DOWN
+                       self.x = new_x # Snap X
+                       return
+
         self.x = new_x
         
     def _climb_vertical(self, level, dy):
         """Climb up or down a ladder."""
         new_y = self.y + dy * self.speed
         
-        # Check screen bounds
+        # Bound checks
         if new_y < MAP_OFFSET_Y * SCALE or new_y > (168 + MAP_OFFSET_Y) * SCALE:
-            # Reached top or bottom, go back to walking
+            # Reached screen bounds, force off
             self.direction = self.DIR_RIGHT if (self.frame % 2) else self.DIR_LEFT
             return
-            
-        # Check for ladder tile
-        col = int((self.x + 8 * SCALE) // (8 * SCALE))
-        row = int((new_y + 8 * SCALE - MAP_OFFSET_Y * SCALE) // (8 * SCALE))
+
+        # Check for grid alignment (Sideways Exit Opportunity)
+        # Mimic Player Step 5: "Sideways Exit"
+        # Must be aligned vertically with a "floor row".
+        # rect.bottom % 8 == 0.
+        # Here `self.y` is top. `self.y + 16` is bottom.
         
-        if row >= 0 and row < len(level.grid) and col >= 0 and col < len(level.grid[0]):
-            tile = level.grid[row][col]
-            
-            if tile not in [TILE_LADDER_L, TILE_LADDER_R]:
-                # Reached end of ladder, start walking
-                self.direction = self.DIR_RIGHT if (self.frame % 2) else self.DIR_LEFT
-                
-                # Fix Y alignment
-                # User: "bottom is srovnaná s bottom dílku žebříku (resp. platformy)"
-                # "vyleze těsně pod platformou" -> previous was too low.
-                # Previous was `row * 8`.
-                # We want `Bottom == Tile.Bottom`.
-                # y + 16 = row * 8 + 8 (Tile Bottom)
-                # y = row * 8 - 8.
-                self.y = (row * 8 - 8) * SCALE + MAP_OFFSET_Y * SCALE
-                return
-                
+        check_y = new_y + 16 * SCALE # Bottom
+        
+        if int(check_y - MAP_OFFSET_Y * SCALE) % (8 * SCALE) == 0:
+             # Using int() to avoid float precision issues, though speed is 1.0.
+             
+             r = self.pixel_to_row(check_y - 1) # row above the line (the row we are in)
+             c = self.pixel_to_col(self.x + 8 * SCALE) # Center column
+             
+             # Check Left Exit
+             # Player checks `c - 2`. Why 2? 
+             # Player width 16 (2 tiles). Center is at `c`. Left is `c-1`.
+             # Tile to the left of the player is `c-2`?
+             # Let's check `c-1`.
+             # If Tile(r, c-1) is Floor, we can go left.
+             can_left = c > 0 and level.grid[r][c-1] == TILE_FLOOR
+             can_right = c < len(level.grid[0]) - 1 and level.grid[r][c+1] == TILE_FLOOR
+             
+             # Also check if we ran out of ladder (Topping out / Bottoming out)
+             # If going UP and tile at Head (r-1?) isn't ladder -> Forced exit
+             # Head is `new_y`. Row is `pixel_to_row(new_y)`.
+             # `r` calculated above is feet row? No, `check_y - 1` is bottom-1.
+             # So `r` is the tile the body occupies (bottom half).
+             
+             # Check "End of Ladder" condition
+             tile_here = level.grid[r][c]
+             if tile_here not in [TILE_LADDER_L, TILE_LADDER_R]:
+                  # We are NOT on a ladder anymore? 
+                  # Or we just climbed past it.
+                  # If we are not on a ladder, we MUST exit.
+                  pass # Logic below handles direction choice
+
+             # AI Decision:
+             # Randomly decide or forced?
+             # If end of ladder, forced.
+             # If junction, random.
+             
+             should_exit = False
+             
+             # Check if we ARE on local ladder tile
+             on_ladder = tile_here in [TILE_LADDER_L, TILE_LADDER_R]
+             
+             if not on_ladder:
+                  should_exit = True
+             elif can_left or can_right:
+                  # Chance to exit sideways?
+                  if (self.frame_counter & 0x04): # Reuse random-ish counter
+                       should_exit = True
+                       
+             if should_exit:
+                  # Pick direction
+                  if can_left and can_right:
+                       self.direction = self.DIR_LEFT if (self.frame_counter % 2) else self.DIR_RIGHT
+                  elif can_left:
+                       self.direction = self.DIR_LEFT
+                  elif can_right:
+                       self.direction = self.DIR_RIGHT
+                  else:
+                       # Stuck? Or end of ladder with no floor?
+                       # Falling? Hens don't fall usually?
+                       # If no floor, maybe turn around (reverse vert)?
+                       # Or just force Right (default fall-back).
+                       self.direction = self.DIR_RIGHT 
+                       
+                  # Snap Y
+                  # We want bottom to be on grid line.
+                  # check_y is exactly on grid line (from if condition).
+                  # so new_y is correct.
+                  self.y = new_y
+                  return
+                  
         self.y = new_y
 
     def _at_ladder_junction(self, level, x_pos, row):
@@ -180,35 +276,6 @@ class Hen:
             return False
             
         # STRICT ALIGNMENT CHECK
-        # "v jednom jediném bode, když jsou přesně zarovnané na stred zebriku"
-        
-        # Note: 4 * SCALE might imply Hen center is aligned with Ladder center.
-        # But if the graphics are drawn such that Left edge aligns...
-        # Let's assume Center-Center alignment is the requirement.
-        
-        target_x = (col * 8 - 4) * SCALE
-        # Wait, if I align to -4, does it look right?
-        # If I align to 0 (col * 8), Hen is shifted right relative to ladder center.
-        # Let's try Strict Grid Alignment (x % 8 == 0) which is `col * 8 * SCALE`.
-        # If that looks off, I'll adjust. 
-        # But user said "aligned to center of ladder".
-        # Ladder is 8px. Hen is 16px.
-        # If Hen Left is at Grid Line, Hen spans [0, 16]. Center 8.
-        # Tile spans [0, 8]. Center 4.
-        # They are OFF by 4 pixels.
-        # So Hen needs to be at -4 to align centers?
-        # -4 spans [-4, 12]. Center 4. YES.
-        # So `target_x = col * 8 * SCALE - 4 * SCALE`.
-        
-        # However, looking at my `spawn_hens` data...
-        # Spawn X are hex values like 0x68, 0x48...
-        # 0x68 = 104. 104 / 8 = 13.
-        # 0x48 = 72. 72 / 8 = 9.
-        # They seem to be character grid aligned (multiples of 8).
-        # So Hens spawn ALIGNED TO GRID (Left edge at tile boundary).
-        # So they probably walk ALIGNED TO GRID.
-        # So I should enforce `x % 8 == 0`. ie. `abs(x_pos - col * 8 * SCALE) < speed`.
-        
         target_x = col * 8 * SCALE
         
         diff = abs(x_pos - target_x)

@@ -41,6 +41,12 @@ def parse_levels(file_path):
                     if clean_b:
                         try:
                            current_data.append(int(clean_b, 16))
+                           # Stop reading if we reached the full level size (32x21 = 672 bytes)
+                           if len(current_data) >= 672:
+                               levels[current_level] = current_data
+                               current_level = None
+                               current_data = []
+                               break # Stop processing this line
                         except ValueError:
                            pass
                            
@@ -86,7 +92,7 @@ def save_levels(levels, output_file):
     print(f"Saved {len(levels)} levels to {output_file}")
 
 def main():
-    skool_file = os.path.join(os.path.dirname(__file__), '../../chuckie-egg.skool')
+    skool_file = os.path.join(os.path.dirname(__file__), '../../chuckie-egg-disassembly/chuckie-egg.skool')
     output_file = os.path.join(os.path.dirname(__file__), '../data/levels.json')
     
     output_dir = os.path.dirname(output_file)

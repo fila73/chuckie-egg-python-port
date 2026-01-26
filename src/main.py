@@ -97,6 +97,34 @@ def main():
                     level_num = 2
                     cleared_levels = 1
                     start_level(level_num)
+                elif event.key == pygame.K_3:
+                    level_num = 3
+                    cleared_levels = 2
+                    start_level(level_num)
+                elif event.key == pygame.K_4:
+                    level_num = 4
+                    cleared_levels = 3
+                    start_level(level_num)
+                elif event.key == pygame.K_5:
+                    level_num = 5
+                    cleared_levels = 4
+                    start_level(level_num)
+                elif event.key == pygame.K_6:
+                    level_num = 6
+                    cleared_levels = 5
+                    start_level(level_num)
+                elif event.key == pygame.K_7:
+                    level_num = 7
+                    cleared_levels = 6
+                    start_level(level_num)
+                elif event.key == pygame.K_8:
+                    level_num = 8
+                    cleared_levels = 7
+                    start_level(level_num)
+                elif event.key == pygame.K_9:
+                    level_num = 9
+                    cleared_levels = 8
+                    start_level(level_num)
                     
         # Update
         frame_count += 1
@@ -106,20 +134,19 @@ def main():
         if not wipe.is_active():
             
             if game_state == STATE_BONUS_COUNTDOWN:
-                if frame_count % 2 == 0:  # Fast countdown
-                    if bonus_timer > 0:
-                        subtract = min(10, bonus_timer)
-                        bonus_timer -= subtract
-                        score += subtract
-                        res_manager.play_sound('bonus')
-                    else:
-                        # Bonus done, next level
-                        game_state = STATE_GAME
-                        cleared_levels += 1
-                        level_num += 1
-                        wipe.start_level_wipe()
-                        start_level(level_num)
-            
+                if bonus_timer > 0:
+                    subtract = min(10, bonus_timer)
+                    bonus_timer -= subtract
+                    score += subtract
+                    res_manager.play_sound('bonus')
+                else:
+                    # Bonus done, next level
+                    game_state = STATE_GAME
+                    cleared_levels += 1
+                    level_num += 1
+                    wipe.start_level_wipe()
+                    start_level(level_num)
+        
             elif game_state == STATE_GAME:
                 # Death Logic
                 if player.state == player.STATE_DEATH:
