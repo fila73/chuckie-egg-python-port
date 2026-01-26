@@ -367,6 +367,7 @@ class MotherDuck:
         self.velocity_y = 0
         self.frame = 0
         self.frame_counter = 0
+        self.move_timer = 0
         
     def activate(self, cleared_levels):
         """Activate duck based on cleared levels."""
@@ -419,40 +420,55 @@ class MotherDuck:
             self.rect.y = int(self.y)
             return
             
+        # Movement timer (original game updates duck every 12 frames)
+        if self.move_timer > 0:
+            self.move_timer -= 1
+            return
+
+        self.move_timer = 12
+
         # 1. Accelerate towards Harry
+        # Original speed: Max speed is 6. Acceleration is 1.
+        limit = 6 * SCALE 
+        
         if self.x > harry_x:
-            self.velocity_x = max(self.velocity_x - 1, -6 * SCALE // 2)  # Accelerate left
+            self.velocity_x = max(self.velocity_x - 1 * SCALE, -limit) 
         elif self.x < harry_x:
-            self.velocity_x = min(self.velocity_x + 1, 5 * SCALE // 2)   # Accelerate right
+            self.velocity_x = min(self.velocity_x + 1 * SCALE, limit) 
             
         if self.y > harry_y:
-            self.velocity_y = max(self.velocity_y - 1, -6 * SCALE // 2)  # Accelerate up
+            self.velocity_y = max(self.velocity_y - 1 * SCALE, -limit) 
         elif self.y < harry_y:
-            self.velocity_y = min(self.velocity_y + 1, 5 * SCALE // 2)   # Accelerate down
+            self.velocity_y = min(self.velocity_y + 1 * SCALE, limit)
             
         # 2. Apply velocity to position
         self.x += self.velocity_x
         self.y += self.velocity_y
         
         # 3. Bounce off screen edges
-        right_edge = (238 + MAP_OFFSET_Y) * SCALE 
+        # Define edges in screen coordinates
+        right_edge = (SCREEN_WIDTH - 16) * SCALE
         left_edge = 0
-        bottom_edge = (166 + MAP_OFFSET_Y) * SCALE
-        top_edge = (20 + MAP_OFFSET_Y) * SCALE
+        bottom_edge = (192 - 16) * SCALE
+        top_edge = 0
         
         if self.x > right_edge:
-            self.x -= 2 * self.velocity_x
-            self.velocity_x = -5 * SCALE // 2
+            self.x = right_edge
+            if self.velocity_x > 0:
+                self.velocity_x = -self.velocity_x
         elif self.x < left_edge:
-            self.x -= 2 * self.velocity_x
-            self.velocity_x = 5 * SCALE // 2
+            self.x = left_edge
+            if self.velocity_x < 0:
+                self.velocity_x = -self.velocity_x
             
         if self.y > bottom_edge:
-            self.y -= 2 * self.velocity_y
-            self.velocity_y = -5 * SCALE // 2
+            self.y = bottom_edge
+            if self.velocity_y > 0:
+                self.velocity_y = -self.velocity_y
         elif self.y < top_edge:
-            self.y -= 2 * self.velocity_y
-            self.velocity_y = 5 * SCALE // 2
+            self.y = top_edge
+            if self.velocity_y < 0:
+                self.velocity_y = -self.velocity_y
             
         # Update rect
         self.rect.x = int(self.x)
