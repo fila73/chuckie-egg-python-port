@@ -150,9 +150,15 @@ def main():
             elif game_state == STATE_GAME:
                 # Death Logic
                 if player.state == player.STATE_DEATH:
-                    # Wait for death animation/timer
-                    # User: pauza by měla být delší (stejně dlouhá jako death_tune)
-                    if pygame.time.get_ticks() - player.death_start_time > 4000: # Increased to 4 sec
+                    # Wait for death sound to finish
+                    playing = False
+                    if player.death_channel:
+                        playing = player.death_channel.get_busy()
+                    
+                    time_passed = pygame.time.get_ticks() - player.death_start_time
+                    
+                    # Wait until sound finishes (or 500ms min fallback if sound failed)
+                    if not playing and time_passed > 500:
                         lives -= 1
                         if lives < 0:
                             # Game Over
@@ -175,7 +181,7 @@ def main():
                             if game_timer == 0:
                                 player.state = player.STATE_DEATH
                                 player.death_start_time = pygame.time.get_ticks()
-                                res_manager.play_sound('death')
+                                player.death_channel = res_manager.play_sound('death')
                         
                         if frame_count % 50 == 0 and bonus_timer > 0:
                             bonus_timer -= 10
@@ -195,13 +201,13 @@ def main():
                         if hen.check_collision(player):
                             player.state = player.STATE_DEATH
                             player.death_start_time = pygame.time.get_ticks()
-                            res_manager.play_sound('death')
+                            player.death_channel = res_manager.play_sound('death')
                             
                     mother_duck.update(player.rect.x, player.rect.y, cleared_levels)
                     if mother_duck.check_collision(player):
                         player.state = player.STATE_DEATH
                         player.death_start_time = pygame.time.get_ticks()
-                        res_manager.play_sound('death')
+                        player.death_channel = res_manager.play_sound('death')
 
 
                     # Collections

@@ -55,6 +55,7 @@ class Player(Entity):
         self.spawn_x = x
         self.spawn_y = y
         self.death_start_time = 0 # To track death tune duration
+        self.death_channel = None # Track death sound channel
         
         self.frame_timer = 0
         self.current_frame = 0
@@ -331,7 +332,7 @@ class Player(Entity):
              if self.state != self.STATE_DEATH:
                   self.state = self.STATE_DEATH
                   self.death_start_time = pygame.time.get_ticks()
-                  self.resources.play_sound('death')
+                  self.death_channel = self.resources.play_sound('death')
 
         self.update_animation()
         # Note: check_collectibles is called from main.py to handle scoring
@@ -457,6 +458,7 @@ class Player(Entity):
         self.jump_vx = 0
         self.current_elevator = None
         self.facing = 'right'
+        self.death_channel = None
 
     def update_animation(self):
         # Simple frame cycler

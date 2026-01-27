@@ -194,7 +194,8 @@ class ResourceManager:
 
     def play_sound(self, name):
         if name in self.sounds:
-            self.sounds[name].play()
+            return self.sounds[name].play()
+        return None
 
     def play_music(self, name, loops=-1):
         if name == 'theme':
