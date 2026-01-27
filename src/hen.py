@@ -17,7 +17,7 @@ HEN_SPAWN_DATA = {
 
 # Number of active hens per level in first playthrough
 HEN_ACTIVE_COUNT = {
-    1: 2, 2: 2, 3: 3, 4: 4, 5: 2, 6: 3, 7: 4, 8: 0
+    1: 2, 2: 2, 3: 3, 4: 4, 5: 2, 6: 3, 7: 4, 8: 5
 }
 
 class Hen:
