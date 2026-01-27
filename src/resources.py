@@ -138,6 +138,22 @@ class ResourceManager:
         self.sprites['hen_climb_0'] = self.tint(img_climb_strip.subsurface((0, 0, 16, 16)), COLOR_CYAN)
         self.sprites['hen_climb_1'] = self.tint(img_climb_strip.subsurface((0, 16, 16, 16)), COLOR_CYAN)
 
+        # Eat (Left/Right) - Cyan
+        img_eat_l_strip = self.load_image('sprites_ostrich_eating_left.png')
+        self.sprites['hen_eat_left_0'] = self.tint(img_eat_l_strip.subsurface((0, 0, 16, 16)), COLOR_CYAN)
+        # Check if strip has 2 frames? Usually yes.
+        if img_eat_l_strip.get_height() >= 32:
+             self.sprites['hen_eat_left_1'] = self.tint(img_eat_l_strip.subsurface((0, 16, 16, 16)), COLOR_CYAN)
+        else:
+             self.sprites['hen_eat_left_1'] = self.sprites['hen_eat_left_0']
+
+        img_eat_r_strip = self.load_image('sprites_ostrich_eating_right.png')
+        self.sprites['hen_eat_right_0'] = self.tint(img_eat_r_strip.subsurface((0, 0, 16, 16)), COLOR_CYAN)
+        if img_eat_r_strip.get_height() >= 32:
+             self.sprites['hen_eat_right_1'] = self.tint(img_eat_r_strip.subsurface((0, 16, 16, 16)), COLOR_CYAN)
+        else:
+             self.sprites['hen_eat_right_1'] = self.sprites['hen_eat_right_0']
+
         # Mother Duck - Yellow
         # User Correction: "sprites_duck_left a sprites_duck_right jsou taky 2 sprity nad sebou"
         # Walk Left Strip

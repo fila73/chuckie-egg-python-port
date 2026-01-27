@@ -17,7 +17,7 @@ HEN_SPAWN_DATA = {
 
 # Number of active hens per level in first playthrough
 HEN_ACTIVE_COUNT = {
-    1: 2, 2: 2, 3: 3, 4: 4, 5: 2, 6: 3, 7: 4, 8: 5
+    1: 2, 2: 3, 3: 3, 4: 4, 5: 2, 6: 3, 7: 4, 8: 5
 }
 
 class Hen:
@@ -28,7 +28,11 @@ class Hen:
     DIR_UP = 3
     DIR_DOWN = 4
     
-    def __init__(self, x, y, direction, resources):
+    STATE_WALKING = 0
+    STATE_EATING = 5
+    
+    def __init__(self, x, y, direction, resources, hen_id=0):
+        self.hen_id = hen_id
         self.x = x * SCALE
         # Invert Y logic: 192 (Height) - 16 (Sprite) - Y = 176 - Y
         self.y = (176 - y) * SCALE
@@ -40,15 +44,17 @@ class Hen:
         self.accumulator = 0.0
         self.active = True
         
+        self.state = self.STATE_WALKING
+        self.eating_timer = 0
+        self.junction_cooldown = 0
+        
         # Create rect for collision
         self.rect = pygame.Rect(self.x, self.y, 16 * SCALE, 16 * SCALE)
 
-    # Note: _move_horizontal and _climb_vertical logic remains relative.
-    # But coordinate checks might need adjustment if bounding box changed.
-    # Bounding box is same size (16x16).
-
-    # ... [Keep update methods same, just updating draw] ...
-
+    def _log_decision(self):
+        """Log movement decision to console."""
+        dir_map = {self.DIR_LEFT: "LEFT", self.DIR_RIGHT: "RIGHT", self.DIR_UP: "UP", self.DIR_DOWN: "DOWN"}
+        print(f"Hen {self.hen_id}: Position ({int(self.x)}, {int(self.y)}), Decided to go {dir_map.get(self.direction)}")
 
     def pixel_to_row(self, y_pixel):
         """Convert pixel Y coordinate to grid row."""
@@ -69,6 +75,38 @@ class Hen:
             self.frame_counter = 0
             self.frame = (self.frame + 1) % 4
             
+        # Cooldown
+        if self.junction_cooldown > 0:
+            self.junction_cooldown -= 1
+            
+        # State Machine
+        if self.state == self.STATE_EATING:
+            self.eating_timer -= 1
+            if self.eating_timer <= 0:
+                self.state = self.STATE_WALKING
+            return
+
+        # Check for Corn (only when walking on platforms)
+        if self.direction in [self.DIR_LEFT, self.DIR_RIGHT]:
+            cx = self.x + 8 * SCALE
+            cy = self.y + 8 * SCALE
+            
+            # Check for corn at leading edge
+            check_x = cx
+            if self.direction == self.DIR_LEFT:
+                 check_x -= 8 * SCALE
+            elif self.direction == self.DIR_RIGHT:
+                 check_x += 8 * SCALE
+                 
+            c = self.pixel_to_col(check_x)
+            r = self.pixel_to_row(cy)
+            
+            # Check current tile and tile below (sometimes sprite overlaps)
+            tile_here = level.get_tile(c, r)
+            if tile_here == TILE_CORN:
+                self._start_eating(level, c, r)
+                return
+                
         # Movement based on direction
         if self.direction == self.DIR_RIGHT:
             self._move_horizontal(level, 1, junction_counter)
@@ -83,6 +121,13 @@ class Hen:
         self.rect.x = int(self.x)
         self.rect.y = int(self.y)
 
+    def _start_eating(self, level, c, r):
+        """Switch to eating state and remove corn."""
+        self.state = self.STATE_EATING
+        self.eating_timer = 25 # 0.5 second at 50 FPS
+        level.set_tile(c, r, TILE_EMPTY)
+        print(f"Hen {self.hen_id} ate corn at ({c}, {r})")
+
     def _move_horizontal(self, level, dx, junction_counter):
         """Move horizontally on platforms."""
         # Calculate next X
@@ -91,6 +136,7 @@ class Hen:
         # Check screen bounds
         if new_x < 0 or new_x > (256 - 16) * SCALE:
             self._reverse_direction()
+            self._log_decision()
             return
             
         # Calculate current grid position (using center for column)
@@ -98,80 +144,122 @@ class Hen:
         c = self.pixel_to_col(cx)
         
         # Row is determined by feet/bottom-ish
-        # Hen is 16px high. If standing on row R, feet are at (R+1)*8?
-        # Player check: r_bottom = pixel_to_row(rect.bottom - 1 - offset)
-        # Here we use top-left y. 
-        # y represents top-left. +16 is bottom.
-        # If standing on floor, bottom aligns with grid.
-        # so r = pixel_to_row(y + 16 - small_offset)
         r = self.pixel_to_row(self.y + 16 * SCALE - 1)
         
-        # Bound checks
-        if r < 0 or r >= len(level.grid) or c < 0 or c >= len(level.grid[0]):
+        # Calculate floor check column (Leading edge + visual offset)
+        floor_check_x = cx
+        if dx < 0:
+             floor_check_x = cx - 10 * SCALE # Look ahead left (Center - 8 (Edge) - 2 (Margin/Offset))
+        elif dx > 0:
+             floor_check_x = cx # Check center for right movement (standard)
+             
+        c_floor = self.pixel_to_col(floor_check_x)
+        
+        # Bound checks using floor check column
+        if r < 0 or r >= len(level.grid) or c_floor < 0 or c_floor >= len(level.grid[0]):
              self._reverse_direction()
+             self._log_decision()
              return
 
         # 1. Check if we ran off the platform
-        tile_below = level.grid[r][c]
-        if tile_below not in [TILE_FLOOR, TILE_LADDER_L, TILE_LADDER_R]:
-             # Only reverse if we are predominantly over the empty tile
-             # i.e. our center has crossed into empty space? 
-             # OR if the leading edge has?
-             # Simple check: Flip if center is over void.
+        # Check tile at body level (r) and under feet (r+1) using c_floor
+        tile_body = level.grid[r][c_floor]
+        tile_footing = level.grid[r+1][c_floor] if r + 1 < len(level.grid) else TILE_EMPTY
+
+        can_walk = False
+        
+        # Case A: On Ladder (Body is in ladder)
+        if tile_body in [TILE_LADDER_L, TILE_LADDER_R]:
+             can_walk = True
+             
+        # Case B: On Floor/Ladder (Standing on top of it)
+        if tile_footing in [TILE_FLOOR, TILE_LADDER_L, TILE_LADDER_R]:
+             can_walk = True
+
+        # Case C: Just exited ladder (Cooldown active) -> Trust the decision
+        if self.junction_cooldown > 0:
+             can_walk = True
+             
+        if not can_walk:
              self._reverse_direction()
+             self._log_decision()
              return
 
-        # 2. Check for Ladder Junctions (mimic Player Step 3)
-        # Check if we are passing a ladder.
-        # Check tile at feet level (should be standing ON it or AT it?)
-        # If we are walking, we are AT row 'r-1' effectively? No, standing on 'r'.
-        # Tile 'r' is floor/ladder-top.
-        # Ladder Up: Tile at 'r-1' (Head level) is Ladder.
-        # Ladder Down: Tile at 'r+1' (Below feet) is Ladder.
+        # 2. Check for Ladder Junctions (Strict Alignment)
+        # Skip check if cooldown is active
+        if self.junction_cooldown > 0:
+             self.x = new_x
+             return
+
+        # Rows to check
+        r_up = r - 2  # Row above head
+        r_down = r + 1 # Row below feet
         
-        # Determine current column center X
-        target_center_x = c * 8 * SCALE + 4 * SCALE # Wait, Hen is 16px. 
-        # Hen Center = x + 8. 
-        # Tile Center = c * 8 + 4.
-        # Player logic: rect.centerx == target_center_x
-        # But for Hen (width 16) vs Player (width 16).
-        # Ladder is 8px wide.
-        # My previous alignment fixes assumed Left Alignment.
-        # User wants "copy from harry". Harry uses `pixel_to_col(self.rect.centerx)`.
-        # And `target_center_x` depends on LADDER_L or R. 
-        # But hens treat TILE_LADDER_L/R similarly in my code context.
-        # Assuming we just align with the grid column `c`.
+        can_go_up = False
+        can_go_down = False
+        target_x_up = 0
+        target_x_down = 0
         
         # Check alignment narrowly
-        # If we are close to being centered on column 'c'?
-        # Or aligned with grid boundary? `new_x % (8*SCALE) == 0`.
+        # If moving LEFT, look ahead by applying the visual offset (sprite is shifted left)
+        cx_check = cx
+        if dx < 0:
+             cx_check -= 4 * SCALE
         
-        if int(new_x) % (8 * SCALE) == 0:
-             # Aligned grid-wise.
-             # Check for ladder possibilities
-             can_go_up = (r > 0) and level.grid[r-1][c] in [TILE_LADDER_L, TILE_LADDER_R]
-             can_go_down = (r < len(level.grid) - 1) and level.grid[r+1][c] in [TILE_LADDER_L, TILE_LADDER_R]
+        # UP CHECK
+        if r_up >= 0:
+            tile_up = level.grid[r_up][c]
+            if tile_up in [TILE_LADDER_L, TILE_LADDER_R]:
+                # Strict Alignment Logic
+                if tile_up == TILE_LADDER_L:
+                    tx = (c + 1) * 8 * SCALE
+                else: # TILE_LADDER_R
+                    tx = c * 8 * SCALE
+                
+                if abs(cx_check - tx) < self.speed + 0.1: # Tolerance
+                    can_go_up = True
+                    target_x_up = tx - 8 * SCALE
+        
+        # DOWN CHECK
+        if r_down < len(level.grid):
+            tile_down = level.grid[r_down][c]
+            if tile_down in [TILE_LADDER_L, TILE_LADDER_R]:
+                # Strict Alignment Logic
+                if tile_down == TILE_LADDER_L:
+                    tx = (c + 1) * 8 * SCALE
+                else: # TILE_LADDER_R
+                    tx = c * 8 * SCALE
+                    
+                if abs(cx_check - tx) < self.speed + 0.1:
+                    can_go_down = True
+                    target_x_down = tx - 8 * SCALE
+
+        # Decide
+        if (can_go_up or can_go_down) and (junction_counter & 0x04): 
+             want_up = False
+             want_down = False
              
-             if (can_go_up or can_go_down) and (junction_counter & 0x04): # Chance to take it
-                  # Decide
-                  want_up = False
-                  want_down = False
+             if (junction_counter & 0x02): # Prefer Up
+                  if can_go_up: want_up = True
+                  elif can_go_down: want_down = True
+             else: # Prefer Down
+                  if can_go_down: want_down = True
+                  elif can_go_up: want_up = True
                   
-                  if (junction_counter & 0x02): # Prefer Up
-                      if can_go_up: want_up = True
-                      elif can_go_down: want_down = True
-                  else: # Prefer Down
-                      if can_go_down: want_down = True
-                      elif can_go_up: want_up = True
-                      
-                  if want_up:
-                       self.direction = self.DIR_UP
-                       self.x = new_x # Snap X
-                       return
-                  elif want_down:
-                       self.direction = self.DIR_DOWN
-                       self.x = new_x # Snap X
-                       return
+             if want_up:
+                  self.direction = self.DIR_UP
+                  self.x = target_x_up # Snap X
+                  self.y = (r_up + 1) * 8 * SCALE + MAP_OFFSET_Y * SCALE # Snap Y
+                  self.junction_cooldown = 16 # Cooldown to move away
+                  self._log_decision()
+                  return
+             elif want_down:
+                  self.direction = self.DIR_DOWN
+                  self.x = target_x_down # Snap X
+                  self.y = (r_down * 8 * SCALE + MAP_OFFSET_Y * SCALE) - 16 * SCALE # Snap Y
+                  self.junction_cooldown = 16 # Cooldown to move away
+                  self._log_decision()
+                  return
 
         self.x = new_x
         
@@ -181,66 +269,76 @@ class Hen:
         
         # Bound checks
         if new_y < MAP_OFFSET_Y * SCALE or new_y > (168 + MAP_OFFSET_Y) * SCALE:
-            # Reached screen bounds, force off
-            self.direction = self.DIR_RIGHT if (self.frame % 2) else self.DIR_LEFT
+            # Reached screen bounds, reverse vertical direction
+            self.direction = self.DIR_DOWN if self.direction == self.DIR_UP else self.DIR_UP
+            self._log_decision()
             return
 
-        # Check for grid alignment (Sideways Exit Opportunity)
-        # Mimic Player Step 5: "Sideways Exit"
-        # Must be aligned vertically with a "floor row".
-        # rect.bottom % 8 == 0.
-        # Here `self.y` is top. `self.y + 16` is bottom.
-        
+        # Check for grid alignment (Sideways Exit / End of Ladder)
         check_y = new_y + 16 * SCALE # Bottom
         
         if int(check_y - MAP_OFFSET_Y * SCALE) % (8 * SCALE) == 0:
-             # Using int() to avoid float precision issues, though speed is 1.0.
+             # Aligned vertically
              
-             r = self.pixel_to_row(check_y - 1) # row above the line (the row we are in)
-             c = self.pixel_to_col(self.x + 8 * SCALE) # Center column
+             # If cooldown active, keep moving (unless hitting end of ladder?)
+             # Actually, end of ladder check is critical to prevent walking into void.
+             # So we should ALWAYS check for mandatory exits.
+             # Only skip Optional Sideways Exit if cooldown is active.
              
-             # Check Left Exit
-             # Player checks `c - 2`. Why 2? 
-             # Player width 16 (2 tiles). Center is at `c`. Left is `c-1`.
-             # Tile to the left of the player is `c-2`?
-             # Let's check `c-1`.
-             # If Tile(r, c-1) is Floor, we can go left.
-             can_left = c > 0 and level.grid[r][c-1] == TILE_FLOOR
-             can_right = c < len(level.grid[0]) - 1 and level.grid[r][c+1] == TILE_FLOOR
+             cx = self.x + 8 * SCALE
+             c = self.pixel_to_col(cx)
              
-             # Also check if we ran out of ladder (Topping out / Bottoming out)
-             # If going UP and tile at Head (r-1?) isn't ladder -> Forced exit
-             # Head is `new_y`. Row is `pixel_to_row(new_y)`.
-             # `r` calculated above is feet row? No, `check_y - 1` is bottom-1.
-             # So `r` is the tile the body occupies (bottom half).
-             
-             # Check "End of Ladder" condition
-             tile_here = level.grid[r][c]
-             if tile_here not in [TILE_LADDER_L, TILE_LADDER_R]:
-                  # We are NOT on a ladder anymore? 
-                  # Or we just climbed past it.
-                  # If we are not on a ladder, we MUST exit.
-                  pass # Logic below handles direction choice
-
-             # AI Decision:
-             # Randomly decide or forced?
-             # If end of ladder, forced.
-             # If junction, random.
+             # Calculate relevant rows for look-ahead
+             r_feet_tile = self.pixel_to_row(check_y - 1)     # Row the feet are currently IN
+             r_head_above = self.pixel_to_row(new_y - 1)      # Row ABOVE the Head
+             r_below_feet = self.pixel_to_row(check_y)        # Row BELOW the Feet
              
              should_exit = False
              
-             # Check if we ARE on local ladder tile
-             on_ladder = tile_here in [TILE_LADDER_L, TILE_LADDER_R]
-             
-             if not on_ladder:
-                  should_exit = True
-             elif can_left or can_right:
-                  # Chance to exit sideways?
-                  if (self.frame_counter & 0x04): # Reuse random-ish counter
+             # 1. Mandatory Exit Checks (Topping out / Bottoming out)
+             if self.direction == self.DIR_UP:
+                  # If going UP: Check if tile ABOVE head is ladder
+                  if r_head_above < 0 or level.grid[r_head_above][c] not in [TILE_LADDER_L, TILE_LADDER_R]:
                        should_exit = True
-                       
+             
+             elif self.direction == self.DIR_DOWN:
+                  # If going DOWN: Check tile BELOW feet
+                  if r_below_feet < len(level.grid):
+                       tile_below = level.grid[r_below_feet][c]
+                       if tile_below not in [TILE_LADDER_L, TILE_LADDER_R]:
+                            should_exit = True
+                  else:
+                       should_exit = True
+
+             # 2. Optional Sideways Exit (Junctions)
+             if not should_exit and self.junction_cooldown == 0:
+                 # Check FOOTING level (r_below_feet) for floor
+                 # Check LEFT (c-1)
+                 can_left = c > 0 and r_below_feet < len(level.grid) and level.grid[r_below_feet][c-1] == TILE_FLOOR
+                 # Check RIGHT (c+1)
+                 can_right = c < len(level.grid[0]) - 1 and r_below_feet < len(level.grid) and level.grid[r_below_feet][c+1] == TILE_FLOOR
+                 
+                 if can_left or can_right:
+                       # Chance to exit sideways?
+                       if (self.frame_counter & 0x04): # Reuse random-ish counter
+                            should_exit = True
+
              if should_exit:
                   # Pick direction
+                  if self.junction_cooldown > 0 and not (can_left or can_right):
+                        # Forced exit but cooldown active? 
+                        # Usually forced exit means we MUST change state.
+                        # If mandatory check triggered, we ignore cooldown.
+                        pass
+                  
+                  # Re-evaluate available exits for decision
+                  # Ensure we check bounds
+                  can_left = False
+                  can_right = False
+                  if r_below_feet < len(level.grid):
+                      can_left = c > 0 and level.grid[r_below_feet][c-1] == TILE_FLOOR
+                      can_right = c < len(level.grid[0]) - 1 and level.grid[r_below_feet][c+1] == TILE_FLOOR
+
                   if can_left and can_right:
                        self.direction = self.DIR_LEFT if (self.frame_counter % 2) else self.DIR_RIGHT
                   elif can_left:
@@ -248,17 +346,21 @@ class Hen:
                   elif can_right:
                        self.direction = self.DIR_RIGHT
                   else:
-                       # Stuck? Or end of ladder with no floor?
-                       # Falling? Hens don't fall usually?
-                       # If no floor, maybe turn around (reverse vert)?
-                       # Or just force Right (default fall-back).
-                       self.direction = self.DIR_RIGHT 
+                       # Stuck at end of ladder with no floor?
+                       # Reverse Vertical Direction instead of turning Horizontal
+                       self.direction = self.DIR_DOWN if self.direction == self.DIR_UP else self.DIR_UP
+                       self.junction_cooldown = 16 # Prevent immediate re-reversal
                        
-                  # Snap Y
-                  # We want bottom to be on grid line.
-                  # check_y is exactly on grid line (from if condition).
-                  # so new_y is correct.
+                  if self.direction in [self.DIR_LEFT, self.DIR_RIGHT]:
+                       self.junction_cooldown = 16 # Prevent immediate turn back
+                       
+                       # Adjustment: If going RIGHT, shift logical X slightly right
+                       if self.direction == self.DIR_RIGHT:
+                           self.x += 4 * SCALE
+                       
+                  # Snap Y to grid line
                   self.y = new_y
+                  self._log_decision()
                   return
                   
         self.y = new_y
@@ -321,9 +423,22 @@ class Hen:
             return
             
         # Get sprite based on direction and frame
-        # Frames 0-3 for walk
-        # Frames 0-1 for climb (reused)
-        if self.direction in [self.DIR_UP, self.DIR_DOWN]:
+        if self.state == self.STATE_EATING:
+            # Use eating sprites. Frame is timer based or just alternate?
+            # frame_counter counts up. use it to alternate eating frame.
+            eat_frame = (self.frame_counter // 4) % 2
+            
+            # Direction determines left/right eating sprite?
+            # Usually hens face the corn.
+            if self.direction == self.DIR_LEFT:
+                sprite_key = f'hen_eat_left_{eat_frame}'
+            elif self.direction == self.DIR_RIGHT:
+                sprite_key = f'hen_eat_right_{eat_frame}'
+            else:
+                # Default if eating while UP/DOWN (shouldn't happen, but fallback to Right)
+                sprite_key = f'hen_eat_right_{eat_frame}'
+                
+        elif self.direction in [self.DIR_UP, self.DIR_DOWN]:
             sprite_key = f'hen_climb_{self.frame % 2}'
         elif self.direction == self.DIR_LEFT:
             sprite_key = f'hen_left_{self.frame % 4}'
@@ -337,13 +452,22 @@ class Hen:
             pygame.draw.rect(screen, COLOR_CYAN, self.rect)
             return
             
-        # Calculate draw position with offset for walk frames
+        # Calculate draw position with offset
         draw_x = int(self.x)
-        if self.direction in [self.DIR_LEFT, self.DIR_RIGHT]:
-            # Walk frames are 1 and 3 (0=stand, 1=walk, 2=stand, 3=walk)
+        
+        # 1. Walking offsets (frames 1 and 3)
+        if self.direction in [self.DIR_LEFT, self.DIR_RIGHT] and self.state != self.STATE_EATING:
             if self.frame in [1, 3]:
-                # User: walk sprity jsou o 4 pixely posunuty doprava -> Shift Left by 4
                 draw_x -= 4 * SCALE
+                
+        # 2. Eating offsets (Specific per direction)
+        if self.state == self.STATE_EATING:
+             if self.direction == self.DIR_LEFT:
+                  # Shift more to the left
+                  draw_x -= 8 * SCALE
+             elif self.direction == self.DIR_RIGHT:
+                  # Shift to the right (whole tile relative to base offset)
+                  draw_x += 7 * SCALE
                 
         screen.blit(pygame.transform.scale(sprite, (16 * SCALE, 16 * SCALE)), (draw_x, int(self.y)))
 
@@ -547,6 +671,6 @@ def spawn_hens(level_num, cleared_levels, resources):
     hens = []
     for i, (x, y, direction, _) in enumerate(spawn_data):
         if i < active_count:
-            hens.append(Hen(x, y, direction, resources))
+            hens.append(Hen(x, y, direction, resources, i + 1))
             
     return hens
